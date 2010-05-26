@@ -1,0 +1,6 @@
+name="flac"
+version="@VERSION@"
+description="OCaml bindings for flac"
+requires="@requires@"
+archive(byte)="flac.cma"
+archive(native)="flac.cmxa"
