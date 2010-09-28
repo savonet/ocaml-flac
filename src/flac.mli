@@ -18,3 +18,5 @@ val read : t-> float array array
 
 val read_pcm : t -> string
 
+val is_eos : t -> bool
+

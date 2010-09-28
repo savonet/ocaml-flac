@@ -18,3 +18,5 @@ external read : t-> float array array = "ocaml_flac_decoder_read"
 
 external read_pcm : t -> string = "ocaml_flac_decoder_read_pcm"
 
+external is_eos : t -> bool = "ocaml_flac_decoder_is_eos"
+

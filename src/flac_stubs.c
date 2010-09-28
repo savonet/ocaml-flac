@@ -21,6 +21,7 @@
 
 
 #include <memory.h>
+#include <stdint.h>
 
 #include <caml/callback.h>
 #include <caml/alloc.h>
@@ -79,11 +80,34 @@ static void cpy_out_buf(ocaml_flac_decoder_callbacks *callbacks,
   return ;
 }
 
+#include <stdio.h>
+
 /* start all the callbacks here. */
 static void metadata_callback(const FLAC__StreamDecoder *decoder, 
                           const FLAC__StreamMetadata *metadata, 
                           void *client_data)
 {
+ if (metadata->type == FLAC__METADATA_TYPE_VORBIS_COMMENT)
+ {
+    // Lazy..
+    FLAC__StreamMetadata_VorbisComment meta = metadata->data.vorbis_comment ;
+    int i;
+    for (i=0; i< meta.num_comments; i++)
+    {
+      FLAC__StreamMetadata_VorbisComment_Entry elem = meta.comments[i];
+      printf("%s\n",elem.entry);
+    }
+    fflush(stdout);
+ }
+ if (metadata->type == FLAC__METADATA_TYPE_STREAMINFO)
+ {
+    printf("Got streaminfo:\n");
+    printf("sample rate: %u\n",metadata->data.stream_info.sample_rate);
+    printf("channels: %u\n",metadata->data.stream_info.channels);
+    printf("total samples: %llu\n",metadata->data.stream_info.total_samples);
+    printf("bits per sameple: %u\n",metadata->data.stream_info.bits_per_sample);
+    fflush(stdout);
+ }
  return ;
 }
 
@@ -161,7 +185,6 @@ CAMLprim value ocaml_flac_decoder_create(value read_func, value seek_func, value
   dec->callbacks.read_f = read_func;
   caml_register_global_root(&read_func);
   dec->callbacks.out_buf = NULL;
-
   // Intialize decoder
   FLAC__stream_decoder_init_stream(
         dec->decoder,
@@ -184,6 +207,18 @@ CAMLprim value ocaml_flac_decoder_create(value read_func, value seek_func, value
   Decoder_val(ans) = dec;
   CAMLreturn(ans);
 }
+
+// TODO remove this !
+CAMLprim value ocaml_flac_decoder_is_eos(value d)
+{
+  CAMLparam1(d);
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  if (FLAC__stream_decoder_get_state(dec->decoder) == FLAC__STREAM_DECODER_END_OF_STREAM)
+    CAMLreturn(Val_true);
+
+  CAMLreturn(Val_false);
+}
+
 
 CAMLprim value ocaml_flac_decoder_read(value d)
 {
@@ -230,16 +265,12 @@ CAMLprim value ocaml_flac_decoder_read_pcm(value d)
   int samples = callbacks->out_frame.header.blocksize;
   // S16LE
   ans = caml_alloc_string(channels*samples*2);
-  char *pcm = String_val(ans);
+  int16_t *pcm = (int16_t *)String_val(ans);
 
-  int c,i,sample;
+  int c,i;
   for (i = 0; i < samples; i++)
     for (c = 0; c < channels; c++)
-    {
-      sample = callbacks->out_buf[c][i];
-      pcm[2*i*channels+c]   = (char)(sample & 0xff);
-      pcm[2*i*channels+c+1] = (char)((sample >> 8) & 0xff);
-    }
+      pcm[i*channels+c] = callbacks->out_buf[c][i];
 
   CAMLreturn(ans);
 }
