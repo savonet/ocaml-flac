@@ -24,16 +24,86 @@
 #include <stdint.h>
 
 #include <caml/callback.h>
+#include <caml/fail.h>
 #include <caml/alloc.h>
 #include <caml/memory.h>
 #include <caml/custom.h>
+#include <caml/mlvalues.h>
+#include <caml/signals.h>
 
 #include <FLAC/stream_decoder.h>
+
+/* polymorphic variant utility macros */
+#define decl_var(x) static value var_##x
+#define import_var(x) var_##x = caml_hash_variant(#x)
+#define get_var(x) var_##x
+
+
+/* cached polymorphic variants */
+decl_var(Search_for_metadata);
+decl_var(Read_metadata);
+decl_var(Search_for_frame_sync);
+decl_var(Read_frame);
+decl_var(End_of_stream);
+decl_var(Ogg_error);
+decl_var(Seek_error);
+decl_var(Aborted);
+decl_var(Memory_allocation_error);
+decl_var(Uninitialized);
+decl_var(Unknown);
+
+static value val_of_state(int s) {
+  switch (s)
+    {
+    case FLAC__STREAM_DECODER_SEARCH_FOR_METADATA:
+      return get_var(Search_for_metadata);
+    case FLAC__STREAM_DECODER_READ_METADATA:
+      return get_var(Read_metadata);
+    case FLAC__STREAM_DECODER_SEARCH_FOR_FRAME_SYNC:
+      return get_var(Search_for_frame_sync);
+    case FLAC__STREAM_DECODER_READ_FRAME:
+      return get_var(Read_frame);
+    case FLAC__STREAM_DECODER_END_OF_STREAM:
+      return get_var(End_of_stream);
+    case FLAC__STREAM_DECODER_OGG_ERROR:
+      return get_var(Ogg_error);
+    case FLAC__STREAM_DECODER_SEEK_ERROR:
+      return get_var(Seek_error);
+    case FLAC__STREAM_DECODER_ABORTED:
+      return get_var(Aborted);
+    case FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR:
+      return get_var(Memory_allocation_error);
+    case FLAC__STREAM_DECODER_UNINITIALIZED:
+      return get_var(Uninitialized);
+    default:
+      return get_var(Unknown);
+    }
+}
+
+/* initialize the module */
+CAMLprim value ocaml_flac_stubs_initialize(value unit)
+{
+  CAMLparam0();
+  /* initialize polymorphic variants */
+  import_var(Search_for_metadata);
+  import_var(Read_metadata);
+  import_var(Search_for_frame_sync);
+  import_var(Read_frame);
+  import_var(End_of_stream);
+  import_var(Ogg_error);
+  import_var(Seek_error);
+  import_var(Aborted);
+  import_var(Memory_allocation_error);
+  import_var(Uninitialized);
+  import_var(Unknown);
+  CAMLreturn(Val_unit);
+}
 
 typedef struct ocaml_flac_decoder_callbacks {
   value read_f;
   FLAC__int32 **out_buf;
   FLAC__Frame out_frame;
+  FLAC__StreamMetadata_StreamInfo *info;
 } ocaml_flac_decoder_callbacks;
 
 typedef struct ocaml_flac_decoder {
@@ -48,6 +118,10 @@ static void finalize_decoder(value e)
 {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
+  if (dec->callbacks.info != NULL)
+    free(dec->callbacks.info);
+  if (dec->callbacks.out_buf != NULL)
+    free(dec->callbacks.out_buf);
   caml_remove_global_root(&dec->callbacks.read_f);
   free(dec);
 }
@@ -80,33 +154,19 @@ static void cpy_out_buf(ocaml_flac_decoder_callbacks *callbacks,
   return ;
 }
 
-#include <stdio.h>
-
 /* start all the callbacks here. */
 static void metadata_callback(const FLAC__StreamDecoder *decoder, 
                           const FLAC__StreamMetadata *metadata, 
                           void *client_data)
 {
- if (metadata->type == FLAC__METADATA_TYPE_VORBIS_COMMENT)
- {
-    // Lazy..
-    FLAC__StreamMetadata_VorbisComment meta = metadata->data.vorbis_comment ;
-    int i;
-    for (i=0; i< meta.num_comments; i++)
-    {
-      FLAC__StreamMetadata_VorbisComment_Entry elem = meta.comments[i];
-      printf("%s\n",elem.entry);
-    }
-    fflush(stdout);
- }
+ ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
  if (metadata->type == FLAC__METADATA_TYPE_STREAMINFO)
  {
-    printf("Got streaminfo:\n");
-    printf("sample rate: %u\n",metadata->data.stream_info.sample_rate);
-    printf("channels: %u\n",metadata->data.stream_info.channels);
-    printf("total samples: %llu\n",metadata->data.stream_info.total_samples);
-    printf("bits per sameple: %u\n",metadata->data.stream_info.bits_per_sample);
-    fflush(stdout);
+    if (callbacks->info != NULL)
+      free(callbacks->info);
+    callbacks->info = malloc(sizeof(FLAC__StreamMetadata_StreamInfo));
+    //TODO: Check alloc..
+    memcpy(callbacks->info,&metadata->data.stream_info,sizeof(FLAC__StreamMetadata_StreamInfo));
  }
  return ;
 }
@@ -147,19 +207,22 @@ static FLAC__bool eof_callback(const FLAC__StreamDecoder *decoder, void *client_
 static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], 
                                    size_t *bytes, void *client_data)
 {
+  CAMLparam0();
+  CAMLlocal1(ret);
   ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
-  
-  value ret = caml_callback(callbacks->read_f,Val_int(*bytes));
+ 
+  ret = caml_callback(callbacks->read_f,Val_int(*bytes));
   /* TODO: 
-  value ret = caml_callback_exn(callbacks->read_f,Val_int(*bytes));
+  ret = caml_callback_exn(callbacks->read_f,Val_int(*bytes));
   if (Is_exception_result(ret)) {
     //For now
-    return FLAC__STREAM_DECODER_READ_STATUS_ABORT;
+    CAMLreturn(FLAC__STREAM_DECODER_READ_STATUS_ABORT);
   } */
   char *data = String_val(Field(ret,0));
   int len = Int_val(Field(ret,1));
   memcpy(buffer,data,len);
-  return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+
+  CAMLreturn(FLAC__STREAM_DECODER_READ_STATUS_CONTINUE);
 }
 
 static FLAC__StreamDecoderWriteStatus write_callback(const FLAC__StreamDecoder *decoder, 
@@ -183,8 +246,9 @@ CAMLprim value ocaml_flac_decoder_create(value read_func, value seek_func, value
   ocaml_flac_decoder *dec = malloc(sizeof(ocaml_flac_decoder));
   dec->decoder = FLAC__stream_decoder_new();
   dec->callbacks.read_f = read_func;
-  caml_register_global_root(&read_func);
+  caml_register_global_root(&dec->callbacks.read_f);
   dec->callbacks.out_buf = NULL;
+  dec->callbacks.info = NULL;
   // Intialize decoder
   FLAC__stream_decoder_init_stream(
         dec->decoder,
@@ -208,17 +272,32 @@ CAMLprim value ocaml_flac_decoder_create(value read_func, value seek_func, value
   CAMLreturn(ans);
 }
 
-// TODO remove this !
-CAMLprim value ocaml_flac_decoder_is_eos(value d)
+CAMLprim value ocaml_flac_decoder_state(value d)
 {
   CAMLparam1(d);
   ocaml_flac_decoder *dec = Decoder_val(d);
-  if (FLAC__stream_decoder_get_state(dec->decoder) == FLAC__STREAM_DECODER_END_OF_STREAM)
-    CAMLreturn(Val_true);
-
-  CAMLreturn(Val_false);
+  CAMLreturn(val_of_state(FLAC__stream_decoder_get_state(dec->decoder)));
 }
 
+CAMLprim value ocaml_flac_decoder_info(value d)
+{
+  CAMLparam1(d);
+  CAMLlocal2(v,s);
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  FLAC__StreamMetadata_StreamInfo *info = dec->callbacks.info;
+  if (info == NULL)
+    caml_raise_constant(*caml_named_value("ogg_exn_out_of_sync"));
+
+  v = caml_alloc_tuple(5);
+  Store_field(v,0,Val_int(info->sample_rate));
+  Store_field(v,1,Val_int(info->channels));
+  Store_field(v,2,Val_int(info->bits_per_sample));
+  Store_field(v,3,caml_copy_int64(info->total_samples));
+  s = caml_alloc_string(16);
+  memcpy(String_val(s),info->md5sum,16);
+  Store_field(v,4,s);
+  CAMLreturn(v);
+}
 
 CAMLprim value ocaml_flac_decoder_read(value d)
 {
@@ -230,7 +309,9 @@ CAMLprim value ocaml_flac_decoder_read(value d)
   ocaml_flac_decoder_callbacks *callbacks = &dec->callbacks;
 
   // Process one frame
+  caml_enter_blocking_section();
   FLAC__stream_decoder_process_single(dec->decoder);
+  caml_leave_blocking_section();
 
   // Alloc array
   int channels = callbacks->out_frame.header.channels;
@@ -258,12 +339,14 @@ CAMLprim value ocaml_flac_decoder_read_pcm(value d)
   ocaml_flac_decoder_callbacks *callbacks = &dec->callbacks;
 
   // Process one frame
+  caml_enter_blocking_section();
   FLAC__stream_decoder_process_single(dec->decoder);
+  caml_leave_blocking_section();
 
   // Alloc string
   int channels = callbacks->out_frame.header.channels;
   int samples = callbacks->out_frame.header.blocksize;
-  // S16LE
+  // S16_LE
   ans = caml_alloc_string(channels*samples*2);
   int16_t *pcm = (int16_t *)String_val(ans);
 
@@ -274,37 +357,4 @@ CAMLprim value ocaml_flac_decoder_read_pcm(value d)
 
   CAMLreturn(ans);
 }
-
-#if 0
-
-CAMLprim value ocaml_flac_decoder_channels (value d)
-{
-
-}
-
-CAMLprim value ocaml_flac_decoder_bits_per_sample (value d)
-{
-
-}
-
-CAMLprim value ocaml_flac_decoder_sample_rate (value d)
-{
-
-}
-
-CAMLprim value ocaml_flac_decoder_raw_seek (value d, value _pos, value _whence)
-{
-
-}
-
-FLAC__uint64
-raw_tell (obj)
-
-sample_seek (obj, sample)
-
-time_seek (obj, seconds)
-
-time_tell (obj)
-
-#endif
 
