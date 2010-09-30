@@ -1,47 +1,50 @@
 
-type t
 
-type read_f = int -> string*int
-type seek_f = unit
-type tell_f = unit
+module Decoder : 
+sig
+  type t
 
-(** Possible states of a decoder. *)
-type state =
-    (** The decoder is ready to search for metadata. *)
-  [ `Search_for_metadata
-    (** The decoder is ready to or is in the process of reading metadata. *)
-  | `Read_metadata
-    (** The decoder is ready to or is in the process of searching for the
-      * frame sync code. *)
-  | `Search_for_frame_sync
-    (** The decoder is ready to or is in the process of reading a frame. *)
-  | `Read_frame
-    (** The decoder has reached the end of the stream. *)
-  | `End_of_stream
-    (** An error occurred in the underlying Ogg layer. *)
-  | `Ogg_error
-    (** An error occurred while seeking.  The decoder must be flushed
-      * or reset before decoding can continue. *)
-  | `Seek_error
-    (** The decoder was aborted by the read callback. *)
-  | `Aborted ]
+  type read_f = int -> string*int
 
-val create : read_f -> seek_f -> tell_f -> t
+  type info =
+    {
+      sample_rate : int;
+      channels : int;
+      bits_per_sample : int;
+      total_samples : int64;
+      md5sum : string
+    }
 
-val read : t-> float array array
+  (** Possible states of a decoder. *)
+  type state =
+    [
+        (** The decoder is ready to search for metadata. *)
+        `Search_for_metadata
+        (** The decoder is ready to or is in the process of reading metadata. *)
+      | `Read_metadata
+        (** The decoder is ready to or is in the process of searching for the
+        * frame sync code. *)
+      | `Search_for_frame_sync
+        (** The decoder is ready to or is in the process of reading a frame. *)
+      | `Read_frame
+        (** The decoder has reached the end of the stream. *)
+      | `End_of_stream
+        (** An error occurred in the underlying Ogg layer. *)
+      | `Ogg_error
+        (** An error occurred while seeking.  The decoder must be flushed
+          * or reset before decoding can continue. *)
+      | `Seek_error
+        (** The decoder was aborted by the read callback. *)
+      | `Aborted ]
 
-val read_pcm : t -> string
+  val create : read_f -> t
 
-val state : t -> state
+  val read : t-> float array array
 
-type info =
-  {
-    sample_rate : int;
-    channels : int;
-    bits_per_sample : int;
-    total_samples : int64;
-    md5sum : string
-  }
+  val read_pcm : t -> string
 
-val info : t -> info option
+  val state : t -> state
 
+  val info : t -> info option
+
+end

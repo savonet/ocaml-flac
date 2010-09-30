@@ -236,7 +236,7 @@ static FLAC__StreamDecoderWriteStatus write_callback(const FLAC__StreamDecoder *
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
-CAMLprim value ocaml_flac_decoder_create(value read_func, value seek_func, value tell_func)
+CAMLprim value ocaml_flac_decoder_create(value read_func)
 {
   CAMLparam1(read_func);
   CAMLlocal1(ans);

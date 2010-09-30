@@ -63,31 +63,31 @@ let () =
     let ret = Unix.read fd s 0 n in
     s,ret
   in 
-  let decoder = Flac.create read_f () () in
+  let decoder = Flac.Decoder.create read_f in
   let info = 
-    match Flac.info decoder with
+    match Flac.Decoder.info decoder with
       | Some info ->
          Printf.printf "Stream info:\n";
-         Printf.printf "sample rate: %i\n" info.Flac.sample_rate ;
-         Printf.printf "bits per sample: %i\n" info.Flac.bits_per_sample ;
-         Printf.printf "channels: %i\n" info.Flac.channels ;
-         Printf.printf "total samples: %s\n" (Int64.to_string info.Flac.total_samples) ;
+         Printf.printf "sample rate: %i\n" info.Flac.Decoder.sample_rate ;
+         Printf.printf "bits per sample: %i\n" info.Flac.Decoder.bits_per_sample ;
+         Printf.printf "channels: %i\n" info.Flac.Decoder.channels ;
+         Printf.printf "total samples: %s\n" (Int64.to_string info.Flac.Decoder.total_samples) ;
          Printf.printf "md5sum: " ;
-         String.iter (fun c -> Printf.printf "%x" (int_of_char c)) info.Flac.md5sum ;
+         String.iter (fun c -> Printf.printf "%x" (int_of_char c)) info.Flac.Decoder.md5sum ;
          Printf.printf "\n";
          info
       | None -> failwith "No info for stream: is it a valid FLAC file?"
   in
-  if info.Flac.bits_per_sample <> 16 then
+  if info.Flac.Decoder.bits_per_sample <> 16 then
     failwith "Unsupported bits per sample." ;
   let srate = 
-    info.Flac.sample_rate
+    info.Flac.Decoder.sample_rate
   in
   let chans = 
-    info.Flac.channels
+    info.Flac.Decoder.channels
   in
   let datalen = 
-    (Int64.to_int info.Flac.total_samples) * chans * 2
+    (Int64.to_int info.Flac.Decoder.total_samples) * chans * 2
   in
   output_string oc "RIFF";
   output_int oc (4 + 24 + 8 + datalen);
@@ -104,11 +104,11 @@ let () =
   output_int oc datalen;
   let pos = ref 0 in
   let rec decode () =
-    let ret = Flac.read_pcm decoder in
+    let ret = Flac.Decoder.read_pcm decoder in
     pos := !pos + (String.length ret) ;
     progress_bar "Decoding FLAC file:" !pos datalen ;
     output_string oc ret ;
-    match Flac.state decoder with
+    match Flac.Decoder.state decoder with
       | `End_of_stream -> Printf.printf "\n"
       | _ -> decode ()
   in 
