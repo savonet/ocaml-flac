@@ -63,21 +63,15 @@ let () =
     let ret = Unix.read fd s 0 n in
     s,ret
   in 
-  let decoder = Flac.Decoder.create read_f in
-  let info = 
-    match Flac.Decoder.info decoder with
-      | Some info ->
-         Printf.printf "Stream info:\n";
-         Printf.printf "sample rate: %i\n" info.Flac.Decoder.sample_rate ;
-         Printf.printf "bits per sample: %i\n" info.Flac.Decoder.bits_per_sample ;
-         Printf.printf "channels: %i\n" info.Flac.Decoder.channels ;
-         Printf.printf "total samples: %s\n" (Int64.to_string info.Flac.Decoder.total_samples) ;
-         Printf.printf "md5sum: " ;
-         String.iter (fun c -> Printf.printf "%x" (int_of_char c)) info.Flac.Decoder.md5sum ;
-         Printf.printf "\n";
-         info
-      | None -> failwith "No info for stream: is it a valid FLAC file?"
-  in
+  let decoder,info = Flac.Decoder.create read_f in
+  Printf.printf "Stream info:\n";
+  Printf.printf "sample rate: %i\n" info.Flac.Decoder.sample_rate ;
+  Printf.printf "bits per sample: %i\n" info.Flac.Decoder.bits_per_sample ;
+  Printf.printf "channels: %i\n" info.Flac.Decoder.channels ;
+  Printf.printf "total samples: %s\n" (Int64.to_string info.Flac.Decoder.total_samples) ;
+  Printf.printf "md5sum: " ;
+  String.iter (fun c -> Printf.printf "%x" (int_of_char c)) info.Flac.Decoder.md5sum ;
+  Printf.printf "\n";
   if info.Flac.Decoder.bits_per_sample <> 16 then
     failwith "Unsupported bits per sample." ;
   let srate = 
@@ -88,6 +82,14 @@ let () =
   in
   let datalen = 
     (Int64.to_int info.Flac.Decoder.total_samples) * chans * 2
+  in
+  let () = 
+    match Flac.Decoder.comments decoder with
+      | None -> Printf.printf "No comment found..\n" ;
+      | Some (vendor,comments) -> 
+           Printf.printf "Metadata:\n";
+           List.iter (fun (x,y) -> Printf.printf "%s: %s\n" x y) comments ;
+           Printf.printf "VENDOR: %s\n" vendor 
   in
   output_string oc "RIFF";
   output_int oc (4 + 24 + 8 + datalen);

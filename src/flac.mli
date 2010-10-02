@@ -37,7 +37,7 @@ sig
         (** The decoder was aborted by the read callback. *)
       | `Aborted ]
 
-  val create : read_f -> t
+  val create : read_f -> t * info
 
   val read : t-> float array array
 
@@ -45,6 +45,6 @@ sig
 
   val state : t -> state
 
-  val info : t -> info option
+  val comments : t -> (string * (string * string) list) option
 
 end

@@ -12,8 +12,6 @@
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
  *
- * Original code from libaudio-flac-decoder-perl.
- *
  * Chunks of this code have been borrowed and influenced 
  * by flac/decode.c and the flac XMMS plugin.
  *
@@ -32,6 +30,7 @@
 #include <caml/signals.h>
 
 #include <FLAC/stream_decoder.h>
+#include <FLAC/metadata.h>
 
 /* polymorphic variant utility macros */
 #define decl_var(x) static value var_##x
@@ -104,6 +103,7 @@ typedef struct ocaml_flac_decoder_callbacks {
   FLAC__int32 **out_buf;
   FLAC__Frame out_frame;
   FLAC__StreamMetadata_StreamInfo *info;
+  FLAC__StreamMetadata *comments;
 } ocaml_flac_decoder_callbacks;
 
 typedef struct ocaml_flac_decoder {
@@ -122,6 +122,8 @@ static void finalize_decoder(value e)
     free(dec->callbacks.info);
   if (dec->callbacks.out_buf != NULL)
     free(dec->callbacks.out_buf);
+  if (dec->callbacks.comments != NULL)
+    FLAC__metadata_object_delete(dec->callbacks.comments);
   caml_remove_global_root(&dec->callbacks.read_f);
   free(dec);
 }
@@ -160,13 +162,20 @@ static void metadata_callback(const FLAC__StreamDecoder *decoder,
                           void *client_data)
 {
  ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
- if (metadata->type == FLAC__METADATA_TYPE_STREAMINFO)
- {
-    if (callbacks->info != NULL)
-      free(callbacks->info);
-    callbacks->info = malloc(sizeof(FLAC__StreamMetadata_StreamInfo));
-    //TODO: Check alloc..
-    memcpy(callbacks->info,&metadata->data.stream_info,sizeof(FLAC__StreamMetadata_StreamInfo));
+ switch (metadata->type) {
+    case FLAC__METADATA_TYPE_STREAMINFO:
+      if (callbacks->info != NULL)
+        free(callbacks->info);
+      callbacks->info = malloc(sizeof(FLAC__StreamMetadata_StreamInfo));
+      //TODO: Check alloc..
+      memcpy(callbacks->info,&metadata->data.stream_info,sizeof(FLAC__StreamMetadata_StreamInfo));
+      break;
+    case FLAC__METADATA_TYPE_VORBIS_COMMENT:
+      if (callbacks->comments != NULL)
+        FLAC__metadata_object_delete(callbacks->comments) ;
+      callbacks->comments = FLAC__metadata_object_clone (metadata);
+    default:
+      break;
  }
  return ;
 }
@@ -212,6 +221,7 @@ static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *de
   ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
  
   ret = caml_callback(callbacks->read_f,Val_int(*bytes));
+
   /* TODO: 
   ret = caml_callback_exn(callbacks->read_f,Val_int(*bytes));
   if (Is_exception_result(ret)) {
@@ -221,6 +231,7 @@ static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *de
   char *data = String_val(Field(ret,0));
   int len = Int_val(Field(ret,1));
   memcpy(buffer,data,len);
+  *bytes = len;
 
   CAMLreturn(FLAC__STREAM_DECODER_READ_STATUS_CONTINUE);
 }
@@ -249,6 +260,11 @@ CAMLprim value ocaml_flac_decoder_create(value read_func)
   caml_register_global_root(&dec->callbacks.read_f);
   dec->callbacks.out_buf = NULL;
   dec->callbacks.info = NULL;
+  dec->callbacks.comments = NULL;
+
+  // Accept vorbis comments
+  FLAC__stream_decoder_set_metadata_respond(dec->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
+
   // Intialize decoder
   FLAC__stream_decoder_init_stream(
         dec->decoder,
@@ -286,7 +302,7 @@ CAMLprim value ocaml_flac_decoder_info(value d)
   ocaml_flac_decoder *dec = Decoder_val(d);
   FLAC__StreamMetadata_StreamInfo *info = dec->callbacks.info;
   if (info == NULL)
-    caml_raise_constant(*caml_named_value("ogg_exn_out_of_sync"));
+    caml_raise_constant(*caml_named_value("flac_exn_internal"));
 
   v = caml_alloc_tuple(5);
   Store_field(v,0,Val_int(info->sample_rate));
@@ -299,23 +315,62 @@ CAMLprim value ocaml_flac_decoder_info(value d)
   CAMLreturn(v);
 }
 
+CAMLprim value ocaml_flac_decoder_comments(value d)
+{
+  CAMLparam1(d);
+  CAMLlocal2(v, ans);
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  FLAC__StreamMetadata *comments = dec->callbacks.comments;
+  int i;
+  if (comments == NULL)
+    caml_raise_constant(*caml_named_value("flac_exn_internal"));
+
+  FLAC__StreamMetadata_VorbisComment coms = comments->data.vorbis_comment;
+
+  ans = caml_alloc_tuple(2);
+  // First comment is vendor string
+  Store_field(ans,0,caml_copy_string((char *)coms.vendor_string.entry));
+  // Now the other metadata
+  v = caml_alloc_tuple(coms.num_comments);
+  for (i = 0; i < coms.num_comments; i++)
+    Store_field(v,i,caml_copy_string((char *)coms.comments[i].entry));
+  Store_field(ans,1,v); 
+
+  CAMLreturn(ans);
+}
+
+static inline double sample_to_double(FLAC__int32 x, unsigned bps)
+{
+  switch (bps) 
+  {
+    /* 8 bit PCM samples are usually 
+     * unsigned. */
+    case 8:
+      return (((double)x-INT8_MAX)/INT8_MAX);
+    case 16:
+      return (((double)x)/INT16_MAX);
+    default:
+      return (((double)x)/INT32_MAX);
+  }
+}
+
 CAMLprim value ocaml_flac_decoder_read(value d)
 {
   CAMLparam1(d);
   CAMLlocal1(ans);
 
-  // This only work for S16LE (for now)
   ocaml_flac_decoder *dec = Decoder_val(d);
   ocaml_flac_decoder_callbacks *callbacks = &dec->callbacks;
 
   // Process one frame
-  caml_enter_blocking_section();
+  //caml_enter_blocking_section();
   FLAC__stream_decoder_process_single(dec->decoder);
-  caml_leave_blocking_section();
+  //caml_leave_blocking_section();
 
   // Alloc array
   int channels = callbacks->out_frame.header.channels;
   int samples = callbacks->out_frame.header.blocksize;
+  unsigned bps = callbacks->out_frame.header.bits_per_sample;
   ans = caml_alloc_tuple(channels);
 
   int c,i;
@@ -324,10 +379,29 @@ CAMLprim value ocaml_flac_decoder_read(value d)
 
   for (c = 0; c < channels; c++)
     for (i = 0; i < samples; i++)
-      Store_double_field(Field(ans, c), i, callbacks->out_buf[c][i]);
+      Store_double_field(Field(ans, c), i, sample_to_double(callbacks->out_buf[c][i],bps));
 
   CAMLreturn(ans);
 }
+
+static inline void sample_to_pcm(FLAC__int32 x, unsigned bps, char *out, int pos)
+{
+  switch (bps)
+  {
+    /* 8 bit PCM samples are usually
+     * unsigned. */
+    case 8:
+      ((uint8_t *)out)[pos] = (uint8_t)x;
+      break;
+    case 16:
+      ((int16_t *)out)[pos] = (int16_t)x;
+      break;
+    default:
+      ((int32_t *)out)[pos] = (int32_t)x;
+      break;
+  }
+}
+
 
 CAMLprim value ocaml_flac_decoder_read_pcm(value d)
 {
@@ -339,21 +413,22 @@ CAMLprim value ocaml_flac_decoder_read_pcm(value d)
   ocaml_flac_decoder_callbacks *callbacks = &dec->callbacks;
 
   // Process one frame
-  caml_enter_blocking_section();
+  //caml_enter_blocking_section();
   FLAC__stream_decoder_process_single(dec->decoder);
-  caml_leave_blocking_section();
+  //caml_leave_blocking_section();
 
   // Alloc string
   int channels = callbacks->out_frame.header.channels;
   int samples = callbacks->out_frame.header.blocksize;
+  unsigned bps = callbacks->out_frame.header.bits_per_sample;
   // S16_LE
-  ans = caml_alloc_string(channels*samples*2);
-  int16_t *pcm = (int16_t *)String_val(ans);
+  ans = caml_alloc_string(channels*samples*bps/8);
+  char *pcm = String_val(ans);
 
   int c,i;
   for (i = 0; i < samples; i++)
     for (c = 0; c < channels; c++)
-      pcm[i*channels+c] = callbacks->out_buf[c][i];
+      sample_to_pcm(callbacks->out_buf[c][i],bps,pcm,i*channels+c);
 
   CAMLreturn(ans);
 }
