@@ -28,7 +28,39 @@ struct
       | `Aborted 
     ]
 
-  exception Invalid of state
+  type error = 
+    [
+        `Lost_sync
+      | `Bad_header
+      | `Frame_crc_mismatch
+      | `Unparseable_stream
+      | `Unknown
+    ]
+
+  exception Error of error
+
+  let () =
+    Callback.register_exception "flac_dec_exn_error" (Error `Unknown)
+
+  exception Lost_sync
+  exception Bad_header
+  exception Frame_crc_mismatch
+  exception Unparseable_stream
+
+  let mk_proper_exn e = 
+    match e with
+      | `Lost_sync -> Lost_sync
+      | `Bad_header -> Bad_header
+      | `Frame_crc_mismatch -> Frame_crc_mismatch 
+      | `Unparseable_stream -> Unparseable_stream
+      | `Unknown -> Internal
+
+  let raise_proper f = 
+    (fun x -> 
+       try
+         f x
+       with
+         | Error e -> raise (mk_proper_exn e))
 
   type info = 
     { 
@@ -55,6 +87,8 @@ struct
       | Some x -> x
       | None -> raise Not_flac
 
+  let info = raise_proper info
+
   external comments : t -> string * (string array) = "ocaml_flac_decoder_comments" 
 
   let split_comment comment =
@@ -77,7 +111,11 @@ struct
 
   let comments = mk_option comments
 
+  let comments = raise_proper comments
+
   external state : t -> state = "ocaml_flac_decoder_state"
+
+  let state = raise_proper state
 
   external create : read_f -> t = "ocaml_flac_decoder_create"
 
@@ -85,21 +123,15 @@ struct
     let dec = create x in
     dec,info dec
 
-  external read : t-> float array array = "ocaml_flac_decoder_read"
+  let create = raise_proper create
+
+  external read : t -> float array array = "ocaml_flac_decoder_read"
+
+  let read = raise_proper read
 
   external read_pcm : t -> string = "ocaml_flac_decoder_read_pcm"
 
-  let mk_val f =
-    (fun dec ->
-      let s = state dec in
-      match s with
-        | `End_of_stream  
-        | `Ogg_error 
-        | `Seek_error -> raise (Invalid s)
-        | _ -> f dec) 
-
-  let read = mk_val read 
-  let read_pcm = mk_val read_pcm
+  let read_pcm = raise_proper read_pcm
 
 end
 

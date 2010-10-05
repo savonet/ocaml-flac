@@ -37,9 +37,14 @@ sig
         (** The decoder was aborted by the read callback. *)
       | `Aborted ]
 
+  exception Lost_sync
+  exception Bad_header
+  exception Frame_crc_mismatch
+  exception Unparseable_stream
+
   val create : read_f -> t * info
 
-  val read : t-> float array array
+  val read : t -> float array array
 
   val read_pcm : t -> string
 
