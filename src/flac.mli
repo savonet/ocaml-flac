@@ -35,7 +35,12 @@ sig
           * or reset before decoding can continue. *)
       | `Seek_error
         (** The decoder was aborted by the read callback. *)
-      | `Aborted ]
+      | `Aborted 
+        (** An error occurred allocating memory.  The decoder is in an invalid
+          * state and can no longer be used. *)
+      | `Memory_allocation_error
+        (** This state should not be seen but.. *)
+      | `Uninitialized ]
 
   exception Lost_sync
   exception Bad_header

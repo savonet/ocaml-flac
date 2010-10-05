@@ -49,10 +49,6 @@ decl_var(Aborted);
 decl_var(Memory_allocation_error);
 decl_var(Uninitialized);
 decl_var(Unknown);
-decl_var(Lost_sync);
-decl_var(Bad_header);
-decl_var(Frame_crc_mismatch);
-decl_var(Unparseable_stream);
 
 static value val_of_state(int s) {
   switch (s)
@@ -82,19 +78,19 @@ static value val_of_state(int s) {
     }
 }
 
-static value val_of_error(int e) {
+static value exn_of_error(FLAC__StreamDecoderErrorStatus e) {
   switch (e)
     {
     case FLAC__STREAM_DECODER_ERROR_STATUS_LOST_SYNC:
-      return get_var(Lost_sync);
+      return *caml_named_value("flac_dec_exn_lost_sync");
     case FLAC__STREAM_DECODER_ERROR_STATUS_BAD_HEADER:
-      return get_var(Bad_header);
+      return *caml_named_value("flac_dec_exn_bad_header");
     case FLAC__STREAM_DECODER_ERROR_STATUS_FRAME_CRC_MISMATCH:
-      return get_var(Frame_crc_mismatch);
+      return *caml_named_value("flac_dec_exn_crc_mismatch");
     case FLAC__STREAM_DECODER_ERROR_STATUS_UNPARSEABLE_STREAM:
-      return get_var(Unparseable_stream);
+      return *caml_named_value("flac_dec_exn_unparseable_stream");
     default:
-      return get_var(Unknown);
+      return *caml_named_value("flac_exn_internal");
     }
 }
 
@@ -114,10 +110,6 @@ CAMLprim value ocaml_flac_stubs_initialize(value unit)
   import_var(Memory_allocation_error);
   import_var(Uninitialized);
   import_var(Unknown);
-  import_var(Lost_sync);
-  import_var(Bad_header);
-  import_var(Frame_crc_mismatch);
-  import_var(Unparseable_stream);
   CAMLreturn(Val_unit);
 }
 
@@ -226,7 +218,7 @@ static void error_callback(const FLAC__StreamDecoder *decoder,
 {
  /* This callback is executed in non-blocking section. */
  caml_leave_blocking_section();
- caml_raise_with_arg(*caml_named_value("flac_dec_exn_error"),val_of_error(status));
+ caml_raise_constant(exn_of_error(status));
  return ;
 }
 
