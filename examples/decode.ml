@@ -16,17 +16,21 @@ let progress_bar =
       fun title pos tot ->
         let nbeq = 40 in
         let n = min (100. *. (float_of_int pos) /. (float_of_int tot)) 100. in
-        let e = int_of_float (n /. 100. *. (float_of_int nbeq)) in
-          Printf.printf "\r%s %6.2f%% [" title n;
-          for i = 1 to e do Printf.printf "=" done;
-          if e != nbeq then Printf.printf ">";
-          for i = e + 2 to nbeq do Printf.printf " " done;
-          Printf.printf "] ";
+        Printf.printf "\r%s " title;
+        if tot > 0 then
+          begin
+            Printf.printf "%6.2f%% [" n;
+            let e = int_of_float (n /. 100. *. (float_of_int nbeq)) in
+            for i = 1 to e do Printf.printf "=" done;
+            if e != nbeq then Printf.printf ">";
+            for i = e + 2 to nbeq do Printf.printf " " done;
+            Printf.printf "] "
+         end ;
           incr spin;
           if !spin > 4 then spin := 1;
           Printf.printf "%c%!"
             (
-              if n = 100. then ' '
+              if tot > 0 && n = 100. then ' '
               else
                 match !spin with
                   | 1 -> '|'
@@ -39,12 +43,14 @@ let progress_bar =
 
 let infile = ref "input.flac"
 let outfile = ref "output.raw"
+let ogg = ref false
 
 let () =
   Arg.parse
     [
       "-o", Arg.Set_string outfile, "Output file";
       "-i", Arg.Set_string infile, "Input file";
+      "-ogg", Arg.Bool (fun x -> ogg := x), "Ogg/flac file";
     ]
     ignore
     "decode [options]"
@@ -62,8 +68,55 @@ let () =
     let s = String.create n in
     let ret = Unix.read fd s 0 n in
     s,ret
+  in
+  let (decoder,info),fill = 
+   if not !ogg then
+     Flac.Decoder.create read_f,(fun () -> failwith "should not happend")
+   else
+     let sync = Ogg.Sync.create read_f in
+     let test_flac () = 
+       (** Get First page *)
+       let page = Ogg.Sync.read sync in
+       (** Check wether this is a b_o_s *)
+       if not (Ogg.Page.bos page) then raise Flac.Not_flac ;
+       (** Create a stream with this ID *)
+       let serial = Ogg.Page.serialno page in
+       Printf.printf "Testing stream %nx\n" serial ;
+       let os = Ogg.Stream.create ~serial () in
+       Ogg.Stream.put_page os page ;
+       let packet = Ogg.Stream.get_packet os in
+       (** Test header. Do not catch anything, first page should be sufficient *)
+       if not (Ogg_flac.Decoder.check_packet packet) then
+         raise Not_found;
+       Printf.printf "Got a flac stream !\n" ;
+       let fill () =
+         let page = Ogg.Sync.read sync in
+         if Ogg.Page.serialno page = serial then
+           Ogg.Stream.put_page os page
+       in
+       let dec = Ogg_flac.Decoder.create packet os in
+       let rec info () =
+        try 
+         Ogg_flac.Decoder.init dec 
+        with
+          | Ogg.Not_enough_data -> fill (); info ()
+       in
+       info (),fill
+     in
+     (** Now find a flac stream *)
+     let rec init () =
+       try
+         test_flac ()
+       with
+         | Not_found ->
+            ( Printf.printf "This stream was not flac..\n";
+              init () )
+         | Flac.Not_flac ->
+            ( Printf.printf "No flac stream was found..\n%!";
+              raise Flac.Not_flac )
+     in
+     init ()
   in 
-  let decoder,info = Flac.Decoder.create read_f in
   Printf.printf "Stream info:\n";
   Printf.printf "sample rate: %i\n" info.Flac.Decoder.sample_rate ;
   Printf.printf "bits per sample: %i\n" info.Flac.Decoder.bits_per_sample ;
@@ -106,16 +159,27 @@ let () =
   output_int oc datalen;
   let pos = ref 0 in
   let rec decode () =
-    let ret = Flac.Decoder.read_pcm decoder in
-    pos := !pos + (String.length ret) ;
-    progress_bar "Decoding FLAC file:" !pos datalen ;
-    output_string oc ret ;
-    match Flac.Decoder.state decoder with
-      | `End_of_stream -> Printf.printf "\n"
-      | _ -> decode ()
-  in 
-  decode () ;
+    try
+      let ret = Flac.Decoder.read_pcm decoder in
+      pos := !pos + (String.length ret) ;
+      progress_bar "Decoding FLAC file:" !pos datalen ;
+      output_string oc ret ;
+      flush oc ;
+      match Flac.Decoder.state decoder with
+        | `End_of_stream -> Printf.printf "\n"
+        | _ -> decode ()
+    with
+      | Ogg.Not_enough_data -> fill (); decode ()
+  in
+  begin
+   try 
+     decode () 
+   with Ogg.Not_enough_data -> ()
+  end ;
+  Printf.printf "\n";
   close_out oc ;
   Unix.close fd ;
-  Gc.full_major ()
-
+  (* We have global root values
+   * so we need to do two full major.. *)
+  Gc.full_major () ;
+  Gc.full_major () ;

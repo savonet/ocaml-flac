@@ -128,6 +128,38 @@ else
     BEST="byte opt"
 fi
 
+# Ogg variables
+OCAMLOGG_REQUIRES="ogg"
+OCAMLOGG_META="package \"ogg\" ()"
+OCAMLOGG_FILES="ogg_flac_stubs.c ogg_flac.ml ogg_flac.mli"
+OCAMLOGG_LIBS="ogg"
+OCAMLOGG_INC=
+
+AC_ARG_WITH([ogg-dir],AC_HELP_STRING([--with-ogg-dir=path],
+        [use "path" as the location of ocaml-ogg (autodetected by default)]))
+if test -z "$with_ogg_dir"; then
+  AC_MSG_CHECKING(for ocaml-ogg)
+  if ($OCAMLFIND query ogg > /dev/null 2>&1); then
+        OCAMLOGG_INC=`$OCAMLFIND query ogg`
+        AC_MSG_RESULT(ok)
+  else
+        OCAMLOGG_REQUIRES=
+        OCAMLOGG_META=
+        OCAMLOGG_FILES=
+        OCAMLOGG_LIBS=
+        AC_MSG_RESULT(not found.)
+  fi
+else
+  echo $with_ogg_dir | grep ^/ > /dev/null 2>&1 \
+  || with_ogg_dir=$PWD/$with_ogg_dir
+  OCAMLOGG_INC="$with_ogg_dir"
+fi
+AC_SUBST(OCAMLOGG_INC)
+AC_SUBST(OCAMLOGG_FILES)
+AC_SUBST(OCAMLOGG_LIBS)
+AC_SUBST(OCAMLOGG_META)
+AC_SUBST(OCAMLOGG_REQUIRES)
+
 # substitutions to perform
 AC_SUBST(VERSION)
 AC_SUBST(OCAMLC)
@@ -151,4 +183,5 @@ AC_SUBST(requires)
 AC_CONFIG_FILES([Makefile],[chmod a-w Makefile])
 AC_CONFIG_FILES([src/META])
 AC_CONFIG_FILES([src/Makefile])
+AC_CONFIG_FILES([examples/Makefile])
 AC_OUTPUT

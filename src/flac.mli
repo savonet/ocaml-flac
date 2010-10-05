@@ -1,4 +1,6 @@
 
+exception Internal 
+exception Not_flac
 
 module Decoder : 
 sig
@@ -39,7 +41,8 @@ sig
         (** An error occurred allocating memory.  The decoder is in an invalid
           * state and can no longer be used. *)
       | `Memory_allocation_error
-        (** This state should not be seen but.. *)
+        (** This state is seen in the case of 
+          * an uninitialized ogg decoder. *)
       | `Uninitialized ]
 
   exception Lost_sync

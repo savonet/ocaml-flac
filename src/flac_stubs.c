@@ -29,8 +29,7 @@
 #include <caml/mlvalues.h>
 #include <caml/signals.h>
 
-#include <FLAC/stream_decoder.h>
-#include <FLAC/metadata.h>
+#include "flac_stubs.h"
 
 /* polymorphic variant utility macros */
 #define decl_var(x) static value var_##x
@@ -113,23 +112,10 @@ CAMLprim value ocaml_flac_stubs_initialize(value unit)
   CAMLreturn(Val_unit);
 }
 
-typedef struct ocaml_flac_decoder_callbacks {
-  value read_f;
-  FLAC__int32 **out_buf;
-  FLAC__Frame out_frame;
-  FLAC__StreamMetadata_StreamInfo *info;
-  FLAC__StreamMetadata *comments;
-} ocaml_flac_decoder_callbacks;
-
-typedef struct ocaml_flac_decoder {
-  FLAC__StreamDecoder *decoder ;
-  ocaml_flac_decoder_callbacks callbacks;
-} ocaml_flac_decoder;
-
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder**)Data_custom_val(v)))
 
-static void finalize_decoder(value e)
+void finalize_decoder(value e)
 {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
@@ -139,7 +125,8 @@ static void finalize_decoder(value e)
     free(dec->callbacks.out_buf);
   if (dec->callbacks.comments != NULL)
     FLAC__metadata_object_delete(dec->callbacks.comments);
-  caml_remove_global_root(&dec->callbacks.read_f);
+  if (dec->callbacks.is_caml == 1)
+    caml_remove_global_root(&dec->callbacks.read_f);
   free(dec);
 }
 
@@ -160,7 +147,6 @@ static void cpy_out_buf(ocaml_flac_decoder_callbacks *callbacks,
   if (callbacks->out_buf != NULL) 
     // free previous memory pointer
     free(callbacks->out_buf);
-  // TODO: raise exc if this fails.
   int samples = frame->header.blocksize;
   int channels = frame->header.channels;
   int bits_per_sample = frame->header.bits_per_sample;
@@ -178,9 +164,9 @@ static void cpy_out_buf(ocaml_flac_decoder_callbacks *callbacks,
 }
 
 /* start all the callbacks here. */
-static void metadata_callback(const FLAC__StreamDecoder *decoder, 
-                          const FLAC__StreamMetadata *metadata, 
-                          void *client_data)
+void metadata_callback(const FLAC__StreamDecoder *decoder, 
+                       const FLAC__StreamMetadata *metadata, 
+                       void *client_data)
 {
  ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
  switch (metadata->type) {
@@ -212,8 +198,8 @@ static void metadata_callback(const FLAC__StreamDecoder *decoder,
  return ;
 }
 
-static void error_callback(const FLAC__StreamDecoder *decoder, 
-                           FLAC__StreamDecoderErrorStatus status, 
+void error_callback(const FLAC__StreamDecoder *decoder, 
+                    FLAC__StreamDecoderErrorStatus status, 
                            void *client_data)
 {
  /* This callback is executed in non-blocking section. */
@@ -269,10 +255,10 @@ static FLAC__StreamDecoderReadStatus read_callback(const FLAC__StreamDecoder *de
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
 }
 
-static FLAC__StreamDecoderWriteStatus write_callback(const FLAC__StreamDecoder *decoder, 
-                                                     const FLAC__Frame *frame, 
-                                                     const FLAC__int32 * const buffer[], 
-                                                     void *client_data)
+FLAC__StreamDecoderWriteStatus write_callback(const FLAC__StreamDecoder *decoder, 
+                                              const FLAC__Frame *frame, 
+                                              const FLAC__int32 * const buffer[], 
+                                              void *client_data)
 {
   ocaml_flac_decoder_callbacks *callbacks = (ocaml_flac_decoder_callbacks *)client_data ;
 
@@ -291,8 +277,10 @@ CAMLprim value ocaml_flac_decoder_create(value read_func)
     caml_raise_out_of_memory();
 
   dec->decoder = FLAC__stream_decoder_new();
-  dec->callbacks.read_f = read_func;
   caml_register_global_root(&dec->callbacks.read_f);
+  dec->callbacks.is_caml = 1;
+  dec->callbacks.read_f = read_func;
+  dec->callbacks.private = NULL;
   dec->callbacks.out_buf = NULL;
   dec->callbacks.info = NULL;
   dec->callbacks.comments = NULL;
