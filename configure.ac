@@ -111,6 +111,13 @@ AC_PROG_CC()
 PKG_PROG_PKG_CONFIG()
 #PKG_CHECK_MODULES(flac, flac, , [AC_MSG_ERROR(flac not found.)])
 
+# Include a config.h
+AC_CONFIG_HEADERS([config.h:config.h.in])
+# Include it
+CFLAGS="$CFLAGS -I`pwd`/`dirname $0`"
+# Check endianess
+AC_C_BIGENDIAN(AC_DEFINE([BIGENDIAN], [1], [The target is big endian]),[])
+
 # PKG_CHECK_MODULES loses when you need --libs-only-[lL]
 if ! $PKG_CONFIG --exists flac; then
         AC_MSG_ERROR([flac not found])
@@ -183,5 +190,6 @@ AC_SUBST(requires)
 AC_CONFIG_FILES([Makefile],[chmod a-w Makefile])
 AC_CONFIG_FILES([src/META])
 AC_CONFIG_FILES([src/Makefile])
-AC_CONFIG_FILES([examples/Makefile])
+AC_CONFIG_FILES([examples/Makefile.decode])
+AC_CONFIG_FILES([examples/Makefile.encode])
 AC_OUTPUT

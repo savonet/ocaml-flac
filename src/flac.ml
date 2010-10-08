@@ -11,9 +11,32 @@ let () =
 
 module Decoder = 
 struct
-  type t
+  type 'a dec
 
-  type read_f = int -> string*int
+  type 'a t = 'a dec
+
+  type write = float array array -> unit
+
+  type read = int -> string*int
+
+  type 'a callbacks = 
+    {
+      read     : read;
+      seek     : (int64 -> unit) option ;
+      tell     : (unit -> int64) option ;
+      length   : (unit -> int64) option ;
+      eof      : (unit -> bool)  option ;
+      write    : write ;
+    }
+
+  type generic
+
+  let get_callbacks ?seek ?tell ?length
+                    ?eof read write : generic callbacks = 
+    { read = read; seek = seek;
+      tell = tell; length = length;
+      eof = eof; write = write;
+    }
 
   (** Possible states of a decoder. *)
   type state =
@@ -50,23 +73,11 @@ struct
       md5sum : string
     }
 
-  let mk_option f =
-   (fun x ->
-      try
-        Some (f x)
-      with
-        | Internal -> None)
+  type comments = string * ((string*string) list)
 
-  external info : t -> info = "ocaml_flac_decoder_info"
+  type comments_array = string * (string array)
 
-  let info = mk_option info
-
-  let info x = 
-    match info x with
-      | Some x -> x
-      | None -> raise Not_flac
-
-  external comments : t -> string * (string array) = "ocaml_flac_decoder_comments" 
+  external info : 'a dec -> info * (comments_array option) = "ocaml_flac_decoder_info"
 
   let split_comment comment =
     try
@@ -82,23 +93,185 @@ struct
         c1, c2;
     with Not_found -> comment, ""
 
-  let comments dec =
-    let vd, cmts = comments dec in
-    vd, (Array.to_list (Array.map split_comment cmts))
+  let _comments cmts =
+    match cmts with
+      | None -> None
+      | Some (vd,cmts) -> 
+          Some (vd,Array.to_list (Array.map split_comment cmts))
 
-  let comments = mk_option comments
+  let info x = 
+    try 
+      let info,comments = info x in
+      info,(_comments comments)
+    with
+      | Internal -> raise Not_flac
 
-  external state : t -> state = "ocaml_flac_decoder_state"
+  external state : 'a t -> 'a callbacks -> state = "ocaml_flac_decoder_state"
 
-  external create : read_f -> t = "ocaml_flac_decoder_create"
+  external create : 'a callbacks -> 'a dec = "ocaml_flac_decoder_create"
 
-  let create x =
-    let dec = create x in
-    dec,info dec
+  external init : 'a dec -> 'a callbacks -> unit = "ocaml_flac_decoder_init"
 
-  external read : t -> float array array = "ocaml_flac_decoder_read"
+  let init dec c = 
+    init dec c ;
+    let info,comments = info dec in
+    dec,info,comments
 
-  external read_pcm : t -> string = "ocaml_flac_decoder_read_pcm"
+  external process : 'a t -> 'a callbacks -> unit = "ocaml_flac_decoder_process"
 
+  external to_s16le : float array array -> string = "caml_flac_float_to_s16le"
+
+  module File = 
+  struct 
+
+    type file
+
+    type handle = 
+     {
+       fd : Unix.file_descr ;
+       dec : file t ;
+       callbacks : file callbacks ;
+       info : info ;
+       comments : (string * ((string * string) list)) option ;
+     } 
+
+    let create_from_fd write fd = 
+      let read n =
+        let s = String.create n in
+        let ret = Unix.read fd s 0 n in
+        s,ret
+      in
+      let seek n =
+        let n = Int64.to_int n in
+        ignore(Unix.lseek fd n Unix.SEEK_SET)
+      in
+      let tell () = 
+        Int64.of_int (Unix.lseek fd 0 Unix.SEEK_CUR)
+      in
+      let length () = 
+        let stats = Unix.fstat fd in
+        Int64.of_int (stats.Unix.st_size)
+      in
+      let eof () = 
+        let stats = Unix.fstat fd in
+        Unix.lseek fd 0 Unix.SEEK_CUR = stats.Unix.st_size
+      in
+      let callbacks = 
+        { read = read; seek = Some seek;
+          tell = Some tell; length = Some length;
+          eof = Some eof; write = write }
+      in
+      let dec = create callbacks in
+      let dec,info,comments = init dec callbacks in
+      { fd = fd; comments = comments; callbacks = callbacks;
+        dec = dec; info = info; }
+
+      let create write filename = 
+        let fd = Unix.openfile filename [Unix.O_RDONLY] 0o640 in
+        try
+          create_from_fd write fd
+        with e -> Unix.close fd; raise e
+
+  end
+
+end
+
+module Encoder = 
+struct
+
+  type 'a priv
+
+  type write = string -> unit
+
+  type 'a callbacks = 
+    { 
+       write : write ;
+       seek  : (int64 -> unit) option ;
+       tell  : (unit -> int64) option
+    }
+
+  type generic
+
+  let get_callbacks ?seek ?tell write : generic callbacks = 
+    { write = write; seek = seek; tell = tell }
+
+  type params =
+    {
+      channels : int ;
+      bits_per_sample : int ;
+      sample_rate : int ;
+      compression_level : int option;
+      total_samples : int64 option ;
+    }
+
+  type comments = (string * string) list
+
+  type 'a t = ('a priv) * params
+
+  exception Invalid_data
+
+  external create : (string * string) array -> params -> 'a callbacks -> 'a priv = "ocaml_flac_encoder_create"
+
+  let create ?(comments=[]) p c =
+    if p.channels <= 0 then
+      raise Invalid_data ;
+    let comments = Array.of_list comments in
+    let enc = create comments p c in 
+    enc,p
+
+  external process : 'a priv -> 'a callbacks -> float array array -> int -> unit = "ocaml_flac_encoder_process"
+
+  let process (enc,p) c data = 
+    if (Array.length data <> p.channels) then
+      raise Invalid_data ;
+    process enc c data p.bits_per_sample
+
+  external finish : 'a priv -> 'a callbacks -> unit = "ocaml_flac_encoder_finish"
+
+  let finish (enc,_) c = finish enc c
+
+  external from_s16le : string -> int -> float array array = "caml_flac_s16le_to_float"
+
+  module File =
+  struct
+
+    type file
+
+    type handle =
+     {
+       fd : Unix.file_descr ;
+       enc : file t ;
+       callbacks : file callbacks
+     }
+
+    let create_from_fd ?comments params fd =
+      let write s =
+        let len = String.length s in
+        let rec f pos = 
+          if pos < len then
+            let ret = Unix.write fd s pos (len-pos) in
+            f (pos+ret)
+        in
+        f 0 
+      in
+      let seek n =
+        let n = Int64.to_int n in
+        ignore(Unix.lseek fd n Unix.SEEK_SET)
+      in
+      let tell () =
+        Int64.of_int (Unix.lseek fd 0 Unix.SEEK_CUR)
+      in
+      let callbacks =
+        { write = write; 
+          seek = Some seek;
+          tell = Some tell }
+      in
+      let enc = create ?comments params callbacks in
+      { fd = fd; enc = enc; callbacks = callbacks }
+
+      let create ?comments params filename =
+        let fd = Unix.openfile filename [Unix.O_CREAT; Unix.O_RDWR] 0o640 in
+        create_from_fd ?comments params fd
+  end
 end
 

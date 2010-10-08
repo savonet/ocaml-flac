@@ -64,15 +64,32 @@ let () =
     Printf.printf "Opening output file %S\n%!" !outfile;
     open_out !outfile
   in
-  let read_f n =
-    let s = String.create n in
-    let ret = Unix.read fd s 0 n in
-    s,ret
+  let ret = Buffer.create 1024 in
+  let write x = 
+    Buffer.add_string ret (Flac.Decoder.to_s16le x) 
   in
-  let (decoder,info),fill = 
+  let get () =
+    let ans = Buffer.contents ret in
+    Buffer.reset ret;
+    ans
+  in
+  let process,info,comments = 
    if not !ogg then
-     Flac.Decoder.create read_f,(fun () -> failwith "should not happend")
+     let h = Flac.Decoder.File.create_from_fd write fd in
+     let process () = 
+        Flac.Decoder.process h.Flac.Decoder.File.dec
+                             h.Flac.Decoder.File.callbacks;
+        Flac.Decoder.state   h.Flac.Decoder.File.dec
+                             h.Flac.Decoder.File.callbacks
+     in
+     process,h.Flac.Decoder.File.info,
+     h.Flac.Decoder.File.comments
    else
+     let read_f n = 
+       let s = String.create n in
+       let ret = Unix.read fd s 0 n in
+       s,ret
+     in
      let sync = Ogg.Sync.create read_f in
      let test_flac () = 
        (** Get First page *)
@@ -94,14 +111,25 @@ let () =
          if Ogg.Page.serialno page = serial then
            Ogg.Stream.put_page os page
        in
-       let dec = Ogg_flac.Decoder.create packet os in
+       let callbacks = Ogg_flac.Decoder.get_callbacks write in
+       let dec = Ogg_flac.Decoder.create packet os callbacks in
        let rec info () =
         try 
-         Ogg_flac.Decoder.init dec 
+         Flac.Decoder.init dec callbacks
         with
           | Ogg.Not_enough_data -> fill (); info ()
        in
-       info (),fill
+       let dec,info,meta = info () in
+       let rec process () = 
+         try
+           Flac.Decoder.process dec callbacks;
+           Flac.Decoder.state dec callbacks
+         with
+           | Ogg.Not_enough_data -> 
+              ( try fill (); process () 
+                with Ogg.Not_enough_data -> `End_of_stream)
+       in
+       process,info,meta
      in
      (** Now find a flac stream *)
      let rec init () =
@@ -137,7 +165,7 @@ let () =
     (Int64.to_int info.Flac.Decoder.total_samples) * chans * 2
   in
   let () = 
-    match Flac.Decoder.comments decoder with
+    match comments with
       | None -> Printf.printf "No comment found..\n" ;
       | Some (vendor,comments) -> 
            Printf.printf "Metadata:\n";
@@ -159,23 +187,17 @@ let () =
   output_int oc datalen;
   let pos = ref 0 in
   let rec decode () =
-    try
-      let ret = Flac.Decoder.read_pcm decoder in
-      pos := !pos + (String.length ret) ;
-      progress_bar "Decoding FLAC file:" !pos datalen ;
-      output_string oc ret ;
-      flush oc ;
-      match Flac.Decoder.state decoder with
-        | `End_of_stream -> Printf.printf "\n"
-        | _ -> decode ()
-    with
-      | Ogg.Not_enough_data -> fill (); decode ()
+    let state = process () in
+    let ret = get () in
+    pos := !pos + (String.length ret) ;
+    progress_bar "Decoding FLAC file:" !pos datalen ;
+    output_string oc ret ;
+    flush oc ;
+    match state with
+      | `End_of_stream -> Printf.printf "\n"
+      | _ -> decode ()
   in
-  begin
-   try 
-     decode () 
-   with Ogg.Not_enough_data -> ()
-  end ;
+  decode () ; 
   Printf.printf "\n";
   close_out oc ;
   Unix.close fd ;

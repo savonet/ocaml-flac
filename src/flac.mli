@@ -4,9 +4,17 @@ exception Not_flac
 
 module Decoder : 
 sig
-  type t
+  type 'a dec
 
-  type read_f = int -> string*int
+  type 'a t
+
+  type write = float array array -> unit
+
+  type read = int -> string*int
+
+  type 'a callbacks 
+
+  type generic
 
   type info =
     {
@@ -16,6 +24,8 @@ sig
       total_samples : int64;
       md5sum : string
     }
+
+  type comments = string * ((string*string) list)
 
   (** Possible states of a decoder. *)
   type state =
@@ -50,14 +60,96 @@ sig
   exception Frame_crc_mismatch
   exception Unparseable_stream
 
-  val create : read_f -> t * info
+  val get_callbacks :
+           ?seek:(int64 -> unit) ->
+           ?tell:(unit -> int64) ->
+           ?length:(unit -> int64) ->
+           ?eof:(unit -> bool) ->
+           read -> write -> generic callbacks
 
-  val read : t -> float array array
+  val create : 'a callbacks -> 'a dec
 
-  val read_pcm : t -> string
+  val init : 'a dec -> 'a callbacks -> ('a t) * info * (comments option)
 
-  val state : t -> state
+  val process : 'a t -> 'a callbacks -> unit
 
-  val comments : t -> (string * (string * string) list) option
+  val state : 'a t -> 'a callbacks -> state
+
+  val to_s16le : float array array -> string
+
+  module File :
+  sig
+
+    type file
+
+    type handle =
+     {
+       fd : Unix.file_descr ;
+       dec : file t ;
+       callbacks : file callbacks ;
+       info : info ;
+       comments : (string * ((string * string) list)) option ;
+     }
+
+    val create_from_fd : write -> Unix.file_descr -> handle
+
+    val create : write -> string -> handle
+  end
 
 end
+
+module Encoder : 
+sig
+  type 'a t
+
+  type write = string -> unit
+
+  type 'a callbacks
+
+  type generic
+
+  type params =
+    {
+      channels : int ;
+      bits_per_sample : int ;
+      sample_rate : int ;
+      compression_level : int option;
+      total_samples : int64 option ;
+    }
+
+  type comments = (string * string) list
+
+  exception Invalid_data
+
+  val get_callbacks :
+       ?seek:(int64 -> unit) ->
+       ?tell:(unit -> int64) -> 
+       write -> generic callbacks
+
+  val create : ?comments:comments -> params -> 'a callbacks -> 'a t
+
+  val process : 'a t -> 'a callbacks -> float array array -> unit
+
+  val finish : 'a t -> 'a callbacks -> unit
+
+  val from_s16le : string -> int -> float array array
+
+  module File :
+  sig
+
+    type file
+
+    type handle =
+     {
+       fd : Unix.file_descr ;
+       enc : file t ;
+       callbacks : file callbacks
+     }
+
+    val create_from_fd : ?comments:comments -> params -> Unix.file_descr -> handle
+
+    val create : ?comments:comments -> params -> string -> handle
+
+  end
+end
+
