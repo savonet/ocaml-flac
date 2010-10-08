@@ -718,13 +718,14 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data, valu
   if (buf == NULL)
     caml_raise_out_of_memory();
   FLAC__int32 *lines = malloc(chans*samples*sizeof(FLAC__int32));
+  buf[0] = lines;
   if (lines == NULL)
   { 
     free(buf);
     caml_raise_out_of_memory();
   }
-  for (c = 0; c < chans; c++)
-    buf[c] = lines+c*samples;
+  for (c = 1; c < chans; c++)
+    buf[c] = buf[c-1] + samples;
  
   for (c = 0; c < chans; c++)
     for (i = 0; i < samples; i++)
