@@ -101,7 +101,7 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
      ogg_stream_state *os = Stream_state_val(h->os);
      if (ogg_stream_packetout(os,&op) == 0)
      {
-       caml_enter_blocking_section();
+       caml_leave_blocking_section();
        caml_raise_constant(*caml_named_value("ogg_exn_not_enough_data"));
      }
      data = op.packet;
@@ -202,6 +202,10 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   // Accept vorbis comments
   FLAC__stream_decoder_set_metadata_respond(dec->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
 
+  // Fill custom value
+  ans = caml_alloc_custom(&ogg_decoder_ops, sizeof(ocaml_flac_decoder*), 1, 0);
+  Decoder_val(ans) = dec;
+
   // Intialize decoder
   caml_enter_blocking_section();
   FLAC__stream_decoder_init_stream(
@@ -218,9 +222,7 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   );
   caml_leave_blocking_section();
 
-  // Fill custom value
-  ans = caml_alloc_custom(&ogg_decoder_ops, sizeof(ocaml_flac_decoder*), 1, 0);
-  Decoder_val(ans) = dec;
+  priv->init_c = Val_none;
 
   CAMLreturn(ans);
 }
