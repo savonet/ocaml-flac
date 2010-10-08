@@ -710,19 +710,21 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data, valu
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   int chans = Wosize_val(data);
-  int samples = Wosize_val(Field(data, 0));
+  int samples = Wosize_val(Field(data, 0)) / Double_wosize;
   int i;
   int c;
  
-  FLAC__int32 **buf = malloc(chans*sizeof(FLAC__int32));
+  FLAC__int32 **buf = malloc(chans*sizeof(FLAC__int32*));
   if (buf == NULL)
     caml_raise_out_of_memory();
-  for (c = 0; c < chans; c++)
-  {
-    buf[c] = malloc(samples*sizeof(FLAC__int32));
-    if (buf[c] == NULL)
-      caml_raise_out_of_memory();
+  FLAC__int32 *lines = malloc(chans*samples*sizeof(FLAC__int32));
+  if (lines == NULL)
+  { 
+    free(buf);
+    caml_raise_out_of_memory();
   }
+  for (c = 0; c < chans; c++)
+    buf[c] = lines+c*samples;
  
   for (c = 0; c < chans; c++)
     for (i = 0; i < samples; i++)
@@ -736,9 +738,8 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data, valu
 
   enc->callbacks.callbacks = Val_none;
 
-  for (c = 0; c < chans; c++)
-    free(buf[c]);
   free(buf);
+  free(lines);
 
   CAMLreturn(Val_unit);
 }
