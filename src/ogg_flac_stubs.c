@@ -144,15 +144,13 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
   } else {
      /* If data is fresh, we copy it
       * and store it. */
-     if (is_fresh == 1) 
+     if (is_fresh == 1 && data_bytes-offset-len > 0) 
      {
-       /* rem > 0 according to the 
-        * value of len above. */
-       int rem = data_bytes-offset-*bytes;
+       unsigned int rem = data_bytes-offset-len;
        h->data = malloc(rem);
        if (h->data == NULL)
        {
-         caml_enter_blocking_section();
+         caml_leave_blocking_section();
          caml_raise_out_of_memory();
        }
        memcpy(h->data,data+offset+len,rem);
