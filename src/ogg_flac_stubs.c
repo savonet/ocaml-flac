@@ -173,13 +173,16 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   CAMLlocal1(ans);
   ogg_packet *p = Packet_val(v);
 
+  ans = ocaml_flac_decoder_alloc(&ogg_decoder_ops);
+  ocaml_flac_decoder *dec = Decoder_val(ans);
+
   ocaml_flac_ogg_private *priv = malloc(sizeof(ocaml_flac_ogg_private));
   if (priv == NULL)
     caml_raise_out_of_memory();
 
   priv->data = malloc(p->bytes);
   if (priv->data == NULL)
-    caml_raise_out_of_memory(); 
+    caml_raise_out_of_memory();
   memcpy(priv->data,p->packet,p->bytes);
   priv->bytes = p->bytes;
   priv->offset = 9;
@@ -187,24 +190,7 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   priv->os = os;
   caml_register_global_root(&priv->init_c);
 
-  // Initialize things
-  ocaml_flac_decoder *dec = malloc(sizeof(ocaml_flac_decoder));
-  if (dec == NULL)
-    caml_raise_out_of_memory();
-
-  dec->decoder = FLAC__stream_decoder_new();
-  caml_register_global_root(&dec->callbacks.callbacks);
-  caml_register_global_root(&dec->callbacks.tmp);
   dec->callbacks.private = (void*)priv;
-  dec->callbacks.info = NULL;
-  dec->callbacks.meta = NULL;
-
-  // Accept vorbis comments
-  FLAC__stream_decoder_set_metadata_respond(dec->decoder, FLAC__METADATA_TYPE_VORBIS_COMMENT);
-
-  // Fill custom value
-  ans = caml_alloc_custom(&ogg_decoder_ops, sizeof(ocaml_flac_decoder*), 1, 0);
-  Decoder_val(ans) = dec;
 
   // Intialize decoder
   caml_enter_blocking_section();
@@ -318,37 +304,11 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
 {
   CAMLparam4(comments,params,os,init_c);
   CAMLlocal2(tmp,ret);
-  FLAC__StreamEncoder *enc = FLAC__stream_encoder_new();
-  if (enc == NULL)
-    caml_raise_out_of_memory();
 
-  FLAC__stream_encoder_set_channels(enc,Int_val(Field(params,0)));
-  FLAC__stream_encoder_set_bits_per_sample(enc,Int_val(Field(params,1)));
-  FLAC__stream_encoder_set_sample_rate(enc,Int_val(Field(params,2)));
-  if (Field(params,3) != Val_none)
-    FLAC__stream_encoder_set_compression_level(enc,Int_val(Some_val(Field(params,3))));
+  ret = ocaml_flac_encoder_alloc(comments,params,&ogg_encoder_ops);
+  ocaml_flac_encoder *caml_enc = Encoder_val(ret);
 
-  /* Metadata */
-  FLAC__StreamMetadata *meta = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
-  if (meta == NULL)
-    caml_raise_out_of_memory();
-  FLAC__StreamMetadata_VorbisComment_Entry entry;
-  /* Vendor string is ignored by libFLAC.. */
-  int i;
-  for(i = 0; i < Wosize_val(comments); i++)
-  {
-    FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(&entry,String_val(Field(Field(comments, i), 0)),String_val(Field(Field(comments, i), 1)));
-    FLAC__metadata_object_vorbiscomment_append_comment(meta,entry,true);
-  }
-  FLAC__stream_encoder_set_metadata(enc,&meta,1);
-
-  if (Field(params,4) != Val_none)
-    FLAC__stream_encoder_set_total_samples_estimate(enc,Int64_val(Some_val(Field(params,4))));
-
-  ocaml_flac_encoder *caml_enc = malloc(sizeof(ocaml_flac_encoder));
-  if (caml_enc == NULL)
-    caml_raise_out_of_memory();
-  caml_enc->encoder = enc;
+  caml_enc->callbacks.callbacks = init_c;
 
   ocaml_flac_ogg_private *priv = malloc(sizeof(ocaml_flac_ogg_private));
   if (priv == NULL)
@@ -363,17 +323,9 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
   priv->init_c = init_c;
 
   caml_enc->callbacks.private = priv;
-  caml_register_global_root(&caml_enc->callbacks.callbacks);
-  caml_enc->callbacks.callbacks = Val_none;
-  caml_register_global_root(&caml_enc->callbacks.tmp);
-  caml_enc->callbacks.tmp = Val_none;
-
-  // Fill custom value
-  ret = caml_alloc_custom(&ogg_encoder_ops, sizeof(ocaml_flac_encoder*), 1, 0);
-  Encoder_val(ret) = caml_enc;
 
   caml_enter_blocking_section();
-  FLAC__stream_encoder_init_stream(enc,
+  FLAC__stream_encoder_init_stream(caml_enc->encoder,
                                    ogg_enc_write_callback,
                                    NULL,
                                    NULL,
@@ -382,8 +334,6 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
   caml_leave_blocking_section();
 
   priv->init_c = Val_none;
-
-  FLAC__metadata_object_delete(meta);
 
   CAMLreturn(ret);
 }

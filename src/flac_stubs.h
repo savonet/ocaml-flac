@@ -27,6 +27,8 @@ typedef struct ocaml_flac_decoder {
   ocaml_flac_decoder_callbacks callbacks;
 } ocaml_flac_decoder;
 
+value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops);
+
 void finalize_decoder(value dec);
 
 /* Caml abstract value containing the decoder. */
@@ -57,11 +59,16 @@ typedef struct ocaml_flac_encoder_callbacks {
 
 typedef struct ocaml_flac_encoder {
   FLAC__StreamEncoder *encoder ;
+  FLAC__StreamMetadata *meta;
+  FLAC__int32 **buf;
+  FLAC__int32 *lines;
   ocaml_flac_encoder_callbacks callbacks;
 } ocaml_flac_encoder;
 
 /* Caml abstract value containing the decoder. */
 #define Encoder_val(v) (*((ocaml_flac_encoder**)Data_custom_val(v)))
+
+value ocaml_flac_encoder_alloc(value comments, value params, struct custom_operations *encoder_ops);
 
 void finalize_encoder(value dec);
 
