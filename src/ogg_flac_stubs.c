@@ -98,12 +98,17 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
   {
      /* Grap a new ogg_packet */
      ogg_packet op;
+
+     /* Take the lock to prevent the Gc from acessing 
+      * concurrently this variable. */
+     caml_leave_blocking_section();
      ogg_stream_state *os = Stream_state_val(h->os);
      if (ogg_stream_packetout(os,&op) == 0)
-     {
-       caml_leave_blocking_section();
        caml_raise_constant(*caml_named_value("ogg_exn_not_enough_data"));
-     }
+
+     /* Now we can release the lock. */
+     caml_enter_blocking_section();
+
      data = op.packet;
      data_bytes = op.bytes;
      offset = 0;
@@ -144,7 +149,7 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
   } else {
      /* If data is fresh, we copy it
       * and store it. */
-     if (is_fresh == 1 && data_bytes-offset-len > 0) 
+     if (is_fresh == 1) 
      {
        unsigned int rem = data_bytes-offset-len;
        h->data = malloc(rem);
@@ -187,6 +192,7 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   caml_register_global_root(&priv->os);
   priv->os = os;
   caml_register_global_root(&priv->init_c);
+  priv->init_c = Val_none;
 
   dec->callbacks.private = (void*)priv;
 
@@ -205,8 +211,6 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
         (void *)&dec->callbacks
   );
   caml_leave_blocking_section();
-
-  priv->init_c = Val_none;
 
   CAMLreturn(ans);
 }
@@ -246,7 +250,12 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
 
   ocaml_flac_encoder_callbacks *callbacks = (ocaml_flac_encoder_callbacks *)client_data ;
   ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)callbacks->private;
+
+  /* Take the lock to prevent the Gc from acessing
+   * concurrently this variable. */
+  caml_leave_blocking_section();
   ogg_stream_state *os = Stream_state_val(h->os);
+
   /* Grab a new ogg_packet */
   ogg_packet op;
   /* Packet with samples are 
@@ -288,12 +297,10 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
       op.e_o_s = 0;
     }
     if (h->header_count > 1)
-    {
-      caml_leave_blocking_section();
       caml_callback(h->init_c,value_of_packet(&op));
-      caml_enter_blocking_section();
-    }
   }
+
+  caml_enter_blocking_section();
 
   return FLAC__STREAM_ENCODER_WRITE_STATUS_OK ;
 }
@@ -330,8 +337,6 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
                                    NULL,
                                    (void*)&caml_enc->callbacks);
   caml_leave_blocking_section();
-
-  priv->init_c = Val_none;
 
   CAMLreturn(ret);
 }

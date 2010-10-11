@@ -10,6 +10,9 @@
 #define Some_val(v) Field(v,0)
 value flac_Val_some(value v);
 
+#define Fill_values(x,c,t) x->callbacks.callbacks = c; x->callbacks.tmp = tmp;
+#define Free_values(x) x->callbacks.callbacks = Val_none; x->callbacks.tmp = Val_none;
+
 /* Decoder */
 
 typedef struct ocaml_flac_decoder_callbacks {
