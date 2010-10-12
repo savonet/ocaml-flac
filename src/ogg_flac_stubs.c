@@ -87,11 +87,12 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
 
   ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)callbacks->private;
 
+  caml_leave_blocking_section();
+
   int is_fresh;
   long offset;
   long data_bytes;
   unsigned char *data;
-
   /* If we do not have any data in 
    * memory, we pull a new packat. */
   if (h->data == NULL)
@@ -99,15 +100,12 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
      /* Grap a new ogg_packet */
      ogg_packet op;
 
-     /* Take the lock to prevent the Gc from acessing 
-      * concurrently this variable. */
-     caml_leave_blocking_section();
      ogg_stream_state *os = Stream_state_val(h->os);
-     if (ogg_stream_packetout(os,&op) == 0)
+     int ret = ogg_stream_packetout(os,&op);
+     if (ret == 0)
        caml_raise_constant(*caml_named_value("ogg_exn_not_enough_data"));
-
-     /* Now we can release the lock. */
-     caml_enter_blocking_section();
+     if (ret == -1)
+       caml_raise_constant(*caml_named_value("ogg_exn_out_of_sync"));
 
      data = op.packet;
      data_bytes = op.bytes;
@@ -151,13 +149,11 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
       * and store it. */
      if (is_fresh == 1) 
      {
-       unsigned int rem = data_bytes-offset-len;
+       long rem = data_bytes-offset-len;
        h->data = malloc(rem);
        if (h->data == NULL)
-       {
-         caml_leave_blocking_section();
          caml_raise_out_of_memory();
-       }
+
        memcpy(h->data,data+offset+len,rem);
        h->bytes = rem;
        h->offset = 0;
@@ -165,6 +161,8 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
      } else 
      h->offset = offset+len;
   }
+
+  caml_enter_blocking_section();
 
   *bytes = len;
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -319,6 +317,8 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
   if (priv == NULL)
     caml_raise_out_of_memory();
   priv->data = NULL;
+  priv->offset = 0;
+  priv->bytes = 0;
   priv->granulepos = 0;
   priv->packetno = 0;
   priv->header_count = 0;

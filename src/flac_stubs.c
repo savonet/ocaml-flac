@@ -496,15 +496,16 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks)
 CAMLprim value ocaml_flac_decoder_init(value d, value c)
 {
   CAMLparam2(d,c);
+  CAMLlocal1(tmp);
   ocaml_flac_decoder *dec = Decoder_val(d);
-  dec->callbacks.callbacks = c;
+  Fill_values(dec,c,tmp);
 
   // Process metadata
   caml_enter_blocking_section();
   FLAC__stream_decoder_process_until_end_of_metadata(dec->decoder);
   caml_leave_blocking_section();
 
-  dec->callbacks.callbacks = Val_none;
+  Free_values(dec);
 
   CAMLreturn(Val_unit);
 }
