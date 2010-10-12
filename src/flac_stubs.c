@@ -113,6 +113,9 @@ CAMLprim value caml_flac_s16le_to_float(value _src, value _chans)
   CAMLreturn(ans) ;
 }
 
+#define Fill_values(x,c,t) x->callbacks.callbacks = c; x->callbacks.tmp = tmp;
+#define Free_values(x) x->callbacks.callbacks = Val_none; x->callbacks.tmp = Val_none;
+
 /* Decoder */
 
 /* polymorphic variant utility macros */
@@ -203,6 +206,8 @@ void finalize_decoder(value e)
 {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
+  caml_remove_global_root(&dec->callbacks.callbacks);
+  caml_remove_global_root(&dec->callbacks.tmp);
   if (dec->callbacks.info != NULL)
     free(dec->callbacks.info);
   if (dec->callbacks.meta != NULL)
@@ -379,8 +384,6 @@ static FLAC__StreamDecoderReadStatus dec_read_callback(const FLAC__StreamDecoder
   memcpy(buffer,data,len);
   *bytes = len;
 
-  callbacks->tmp = Val_none;
-
   caml_enter_blocking_section();
 
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -425,8 +428,6 @@ FLAC__StreamDecoderWriteStatus dec_write_callback(const FLAC__StreamDecoder *dec
 
   caml_callback(Field(callbacks->callbacks,5),callbacks->tmp);
 
-  callbacks->tmp = Val_none;
-
   caml_enter_blocking_section();
 
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
@@ -443,10 +444,9 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops)
     caml_raise_out_of_memory();
 
   dec->decoder = FLAC__stream_decoder_new();
-  /* We do not register those as 
-   * global root as we fill them 
-   * during each call.. */
+  caml_register_global_root(&dec->callbacks.callbacks);
   dec->callbacks.callbacks = Val_none;
+  caml_register_global_root(&dec->callbacks.tmp);
   dec->callbacks.tmp = Val_none;
   dec->callbacks.private = NULL;
   dec->callbacks.info = NULL;
@@ -585,6 +585,8 @@ CAMLprim value ocaml_flac_decoder_process(value d, value c)
 void finalize_encoder(value e)
 {
   ocaml_flac_encoder *enc = Encoder_val(e);
+  caml_remove_global_root(&enc->callbacks.callbacks);
+  caml_remove_global_root(&enc->callbacks.tmp);
   if (enc->encoder != NULL)
     FLAC__stream_encoder_delete(enc->encoder);
   if (enc->meta != NULL)
@@ -619,8 +621,6 @@ FLAC__StreamEncoderWriteStatus enc_write_callback(const FLAC__StreamEncoder *enc
   callbacks->tmp = caml_alloc_string(bytes);
   memcpy(String_val(callbacks->tmp),buffer,bytes);
   caml_callback(Field(callbacks->callbacks,0),callbacks->tmp);
-
-  callbacks->tmp = Val_none;
 
   caml_enter_blocking_section();
 
@@ -695,10 +695,9 @@ value ocaml_flac_encoder_alloc(value comments, value params, struct custom_opera
 
   caml_enc->encoder = enc;
   caml_enc->callbacks.private = NULL;
-  /* We do not register those as
-   * global root as we fill them
-   * during each call.. */
+  caml_register_global_root(&caml_enc->callbacks.callbacks);
   caml_enc->callbacks.callbacks = Val_none;
+  caml_register_global_root(&caml_enc->callbacks.callbacks);
   caml_enc->callbacks.tmp = Val_none;
   caml_enc->buf = NULL;
   caml_enc->lines = NULL;
