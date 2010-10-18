@@ -1,16 +1,15 @@
 ocaml-flac
 
 
-This package contains an O'Caml interface for 
-Free Lossless Audio Codec, 
-otherwise known as flac.
+This package contains an OCaml interface for 
+the Free Lossless Audio Codec otherwise known as FLAC.
 
 Please read the COPYING file before using this software.
 
 Prerequisites:
 ==============
 
-- ocaml >= 3.0.6 (haven't tried earlier versions)
+- ocaml >= 3.10.2 (haven't tried earlier versions)
 
 - flac >= 1.2.1 (haven't tried earlier versions)
 
