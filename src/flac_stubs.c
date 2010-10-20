@@ -393,10 +393,8 @@ static inline double sample_to_double(FLAC__int32 x, unsigned bps)
 {
   switch (bps) 
   {
-    /* 8 bit PCM samples are usually 
-     * unsigned. */
     case 8:
-      return (((double)x-INT8_MAX)/INT8_MAX);
+      return (((double)x)/INT8_MAX);
     case 16:
       return (((double)x)/INT16_MAX);
     default:
@@ -758,10 +756,8 @@ static inline FLAC__int32 sample_from_double(double x, unsigned bps)
 {
   switch (bps)
   {
-    /* 8 bit PCM samples are usually
-     * unsigned. */
     case 8:
-      return (x+1)*INT8_MAX;
+      return x*INT8_MAX;
     case 16:
       return x*INT16_MAX;
     default:

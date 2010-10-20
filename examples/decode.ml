@@ -95,7 +95,7 @@ let () =
        (** Get First page *)
        let page = Ogg.Sync.read sync in
        (** Check wether this is a b_o_s *)
-       if not (Ogg.Page.bos page) then raise Flac.Not_flac ;
+       if not (Ogg.Page.bos page) then raise Flac.Decoder.Not_flac ;
        (** Create a stream with this ID *)
        let serial = Ogg.Page.serialno page in
        Printf.printf "Testing stream %nx\n" serial ;
@@ -139,9 +139,9 @@ let () =
          | Not_found ->
             ( Printf.printf "This stream was not flac..\n";
               init () )
-         | Flac.Not_flac ->
+         | Flac.Decoder.Not_flac ->
             ( Printf.printf "No flac stream was found..\n%!";
-              raise Flac.Not_flac )
+              raise Flac.Decoder.Not_flac )
      in
      init ()
   in 
