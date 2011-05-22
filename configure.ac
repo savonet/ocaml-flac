@@ -41,7 +41,13 @@ AC_SUBST([flac_LDFLAGS])
 
 # Ogg variables
 OCAMLOGG_REQUIRES="ogg"
-OCAMLOGG_META="package \"ogg\" ()"
+OCAMLOGG_META="package \"ogg\" (
+  requires = \"flac ogg\"
+  version = \"$VERSION\"
+  description = \"Ogg/flac OCaml encoding/decoding module\"
+  archive(byte)= \"flac.cma\"
+  archive(native)= \"flac.cmxa\"
+)"
 OCAMLOGG_FILES="ogg_flac_stubs.c ogg_flac.ml ogg_flac.mli"
 OCAMLOGG_LIBS="ogg"
 OCAMLOGG_INC=
