@@ -2,9 +2,9 @@
 
 PROGNAME := ocaml-flac
 DISTFILES := CHANGES COPYING Makefile.in README \
-	bootstrap configure configure.ac m4/*.m4 \
-	src/*.ml src/*.mli src/*.c src/Makefile.in src/META.in \
-	src/OCamlMakefile \
+	bootstrap configure configure.ac m4/*.m4 config.h.in \
+	src/*.ml src/*.mli src/*.c src/*.h src/Makefile.in src/META.in \
+	src/OCamlMakefile examples/Makefile.*.in \
 	examples/*.ml examples/Makefile examples/OCamlMakefile
 VERSION = @VERSION@
 
