@@ -172,6 +172,37 @@ sig
   (** Decode one frame of audio data. *)
   val process : 'a t -> 'a callbacks -> unit
 
+  (** Flush the input and seek to an absolute sample.
+    * Decoding will resume at the given sample. Note 
+    * that because of this, the next write callback may 
+    * contain a partial block.  The client must support seeking 
+    * the input or this function will fail and return [false].  
+    * Furthermore, if the decoder state is [`Seek_error]
+    * then the decoder must be flushed or reset
+    * before decoding can continue. *)
+  val seek : 'a t -> 'a callbacks -> Int64.t -> bool
+
+  (** Flush the stream input.
+    *  The decoder's input buffer will be cleared and the state set to
+    *  [`Search_for_frame_sync].  This will also turn
+    *  off MD5 checking. *)
+  val flush : 'a t -> 'a callbacks -> bool
+
+  (** Reset the decoding process.
+    *  The decoder's input buffer will be cleared and the state set to
+    *  [`Search_for_metadata]. MD5 checking will be restored to its original
+    *  setting.
+    *
+    *  If the decoder is seekable, the decoder will also attempt to seek to 
+    *  the beginning of the stream. If this rewind fails, this function will 
+    * return [false].  It follows that [reset] cannot be used when decoding 
+    * from [stdin].
+    *
+    *  If the decoder is not seekable (i.e. no seek callback was provided) 
+    *  it is the duty of the client to start feeding data from the beginning 
+    *  of the stream on the next [process]. *)
+  val reset : 'a t -> 'a callbacks -> bool
+
   (** Get the state of a decoder. *)
   val state : 'a t -> 'a callbacks -> state
 
@@ -198,6 +229,9 @@ sig
      {
        fd : Unix.file_descr ;
        dec : file t ;
+       (* These callback support [seek] and [tell]
+        * if the underlying [Unix.file_descriptor]
+        * supports them. *)
        callbacks : file callbacks ;
        info : info ;
        comments : (string * ((string * string) list)) option ;

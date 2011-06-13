@@ -186,6 +186,15 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
   return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
 }
 
+CAMLprim value ocaml_flac_decoder_ogg_update_os(value v, value os)
+{
+  CAMLparam2(v,os);
+  ocaml_flac_decoder *dec = Decoder_val(v);
+  ocaml_flac_ogg_private *priv = dec->callbacks.private;
+  priv->os = os;
+  CAMLreturn(Val_unit);
+}
+
 CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
 {
   CAMLparam2(v,os);

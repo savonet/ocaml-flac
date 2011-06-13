@@ -48,7 +48,7 @@ OCAMLOGG_META="package \"ogg\" (
   archive(byte)= \"flac.cma\"
   archive(native)= \"flac.cmxa\"
 )"
-OCAMLOGG_FILES="ogg_flac_stubs.c ogg_flac.ml ogg_flac.mli"
+OCAMLOGG_FILES="ogg_flac_stubs.c ogg_flac.ml ogg_flac.mli ogg_demuxer_flac_decoder.mli ogg_demuxer_flac_decoder.ml"
 OCAMLOGG_LIBS="ogg"
 OCAMLOGG_INC=
 

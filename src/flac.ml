@@ -1,5 +1,5 @@
 (*
- * Copyright 2003-2010 Savonet team
+ * Copyright 2003-2011 Savonet team
  *
  * This file is part of Ocaml-flac.
  *
@@ -138,6 +138,12 @@ struct
     dec,info,comments
 
   external process : 'a t -> 'a callbacks -> unit = "ocaml_flac_decoder_process"
+
+  external seek : 'a t -> 'a callbacks -> Int64.t -> bool = "ocaml_flac_decoder_seek"
+
+  external flush : 'a t -> 'a callbacks -> bool = "ocaml_flac_decoder_flush"
+
+  external reset : 'a t -> 'a callbacks -> bool = "ocaml_flac_decoder_reset"
 
   external to_s16le : float array array -> string = "caml_flac_float_to_s16le"
 

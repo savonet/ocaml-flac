@@ -564,7 +564,7 @@ CAMLprim value ocaml_flac_decoder_info(value d)
 CAMLprim value ocaml_flac_decoder_process(value d, value c)
 {
   CAMLparam2(d,c);
-  CAMLlocal2(ans,tmp);
+  CAMLlocal1(tmp);
 
   ocaml_flac_decoder *dec = Decoder_val(d);
   Fill_values(dec,c,tmp);
@@ -577,6 +577,73 @@ CAMLprim value ocaml_flac_decoder_process(value d, value c)
   Free_values(dec);
 
   CAMLreturn(Val_unit);
+}
+
+CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos)
+{
+  CAMLparam3(d,c,pos);
+  CAMLlocal1(tmp);
+  FLAC__uint64 offset = Int64_val(pos);
+  FLAC_API FLAC__bool ret;
+
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  Fill_values(dec,c,tmp);
+
+  // Process one frame
+  caml_enter_blocking_section();
+  ret = FLAC__stream_decoder_seek_absolute(dec->decoder,offset);
+  caml_leave_blocking_section();
+
+  Free_values(dec);
+
+  if (ret == true)
+    CAMLreturn(Val_true);
+  else
+    CAMLreturn(Val_false);
+}
+
+CAMLprim value ocaml_flac_decoder_reset(value d, value c)
+{
+  CAMLparam2(d,c);
+  CAMLlocal1(tmp);
+  FLAC_API FLAC__bool ret;
+
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  Fill_values(dec,c,tmp);
+
+  // Process one frame
+  caml_enter_blocking_section();
+  ret = FLAC__stream_decoder_reset(dec->decoder);
+  caml_leave_blocking_section();
+
+  Free_values(dec);
+
+  if (ret == true)
+    CAMLreturn(Val_true);
+  else
+    CAMLreturn(Val_false);
+}
+
+CAMLprim value ocaml_flac_decoder_flush(value d, value c)
+{
+  CAMLparam2(d,c);
+  CAMLlocal1(tmp);
+  FLAC_API FLAC__bool ret;
+
+  ocaml_flac_decoder *dec = Decoder_val(d);
+  Fill_values(dec,c,tmp);
+
+  // Process one frame
+  caml_enter_blocking_section();
+  ret = FLAC__stream_decoder_flush(dec->decoder);
+  caml_leave_blocking_section();
+
+  Free_values(dec);
+
+  if (ret == true)
+    CAMLreturn(Val_true);
+  else
+    CAMLreturn(Val_false);
 }
 
 /* Encoder */

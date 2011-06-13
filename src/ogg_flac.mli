@@ -61,6 +61,9 @@ sig
   (** Create an ogg/flac decoder *)
   val create : Ogg.Stream.packet -> Ogg.Stream.t -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec
 
+  (** Update the [Ogg.Stream.t] associated
+    * to the decoder. *)
+  val update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.t -> unit
 end
 
 (** Encode ogg/flac data *)

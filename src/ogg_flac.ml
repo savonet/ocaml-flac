@@ -34,7 +34,8 @@ struct
   external check_packet : Ogg.Stream.packet -> bool = "ocaml_flac_decoder_check_ogg"
 
   external create : Ogg.Stream.packet -> Ogg.Stream.t -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec = "ocaml_flac_decoder_ogg_create"
-
+ 
+  external update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.t -> unit = "ocaml_flac_decoder_ogg_update_os"
 end
 
 module Encoder = 
