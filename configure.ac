@@ -19,25 +19,15 @@ AC_PROG_CC()
 AC_CHECK_TOOL([AR],[ar],no)
 AC_SUBST(AR)
 PKG_PROG_PKG_CONFIG()
+PKG_CONFIG_CHECK_MODULE([flac])
 #PKG_CHECK_MODULES(flac, flac, , [AC_MSG_ERROR(flac not found.)])
 
 # Include a config.h
 AC_CONFIG_HEADERS([config.h:config.h.in])
 # Include it
-CFLAGS="$CFLAGS -I`pwd`/`dirname $0`"
+CFLAGS="$CFLAGS -I .."
 # Check endianess
 AC_C_BIGENDIAN(AC_DEFINE([BIGENDIAN], [1], [The target is big endian]),[])
-
-# PKG_CHECK_MODULES loses when you need --libs-only-[lL]
-if ! $PKG_CONFIG --exists flac; then
-        AC_MSG_ERROR([flac not found])
-fi
-flac_CFLAGS=`$PKG_CONFIG --cflags flac`
-AC_SUBST([flac_CFLAGS])
-flac_LIBS=`$PKG_CONFIG --libs-only-l flac`
-AC_SUBST([flac_LIBS])
-flac_LDFLAGS=`$PKG_CONFIG --libs-only-L flac`
-AC_SUBST([flac_LDFLAGS])
 
 # Ogg variables
 OCAMLOGG_REQUIRES="ogg"
@@ -64,7 +54,7 @@ if test -z "$with_ogg_dir"; then
         OCAMLOGG_META=
         OCAMLOGG_FILES=
         OCAMLOGG_LIBS=
-        AC_MSG_RESULT(not found.)
+        AC_MSG_ERROR(not found.)
   fi
 else
   echo $with_ogg_dir | grep ^/ > /dev/null 2>&1 \
