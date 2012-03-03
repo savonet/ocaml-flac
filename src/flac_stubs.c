@@ -833,6 +833,8 @@ static inline FLAC__int32 sample_from_double(double x, unsigned bps)
       return x*INT8_MAX;
     case 16:
       return x*INT16_MAX;
+    case 24:
+      return x*INT24_MAX;
     default:
       return x*INT32_MAX;
   }
