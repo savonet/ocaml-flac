@@ -32,6 +32,10 @@
 #include "flac_stubs.h"
 #include "config.h"
 
+#ifndef INT24_MAX
+#define INT24_MAX 0x007fffffL
+#endif
+
 /* Thanks you
  * http://www.linux-nantes.org/~fmonnier/ocaml/ocaml-wrapping-c.php#ref_option */
 value flac_Val_some( value v )
@@ -397,6 +401,8 @@ static inline double sample_to_double(FLAC__int32 x, unsigned bps)
       return (((double)x)/INT8_MAX);
     case 16:
       return (((double)x)/INT16_MAX);
+    case 24:
+      return (((double)x)/INT24_MAX);
     default:
       return (((double)x)/INT32_MAX);
   }
