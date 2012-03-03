@@ -1,7 +1,7 @@
 0.1.1 ()
 =====
 * Fixed incorrect decoding of 24bit flac streams.
-  Thanks to Vittee Nakka for reporting and patching!
+  Thanks to Wittawas Nakkasem for reporting and patching!
 
 0.1.0 (04-07-2011)
 ======
