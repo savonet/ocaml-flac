@@ -1,4 +1,4 @@
-0.1.1 ()
+0.1.1 (25-06-2012)
 =====
 * Fixed incorrect decoding of 24bit flac streams.
   Thanks to Wittawas Nakkasem for reporting and patching!
