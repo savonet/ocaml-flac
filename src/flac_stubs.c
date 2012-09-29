@@ -123,22 +123,7 @@ CAMLprim value caml_flac_s16le_to_float(value _src, value _chans)
 /* Decoder */
 
 /* polymorphic variant utility macros */
-#define decl_var(x) static value var_##x
-#define import_var(x) var_##x = caml_hash_variant(#x)
-#define get_var(x) var_##x
-
-/* cached polymorphic variants */
-decl_var(Search_for_metadata);
-decl_var(Read_metadata);
-decl_var(Search_for_frame_sync);
-decl_var(Read_frame);
-decl_var(End_of_stream);
-decl_var(Ogg_error);
-decl_var(Seek_error);
-decl_var(Aborted);
-decl_var(Memory_allocation_error);
-decl_var(Uninitialized);
-decl_var(Unknown);
+#define get_var(x) caml_hash_variant(#x)
 
 static value val_of_state(int s) {
   switch (s)
@@ -182,25 +167,6 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
     default:
       caml_raise_constant(*caml_named_value("flac_exn_internal"));
     }
-}
-
-/* initialize the module */
-CAMLprim value ocaml_flac_stubs_initialize(value unit)
-{
-  CAMLparam0();
-  /* initialize polymorphic variants */
-  import_var(Search_for_metadata);
-  import_var(Read_metadata);
-  import_var(Search_for_frame_sync);
-  import_var(Read_frame);
-  import_var(End_of_stream);
-  import_var(Ogg_error);
-  import_var(Seek_error);
-  import_var(Aborted);
-  import_var(Memory_allocation_error);
-  import_var(Uninitialized);
-  import_var(Unknown);
-  CAMLreturn(Val_unit);
 }
 
 /* Caml abstract value containing the decoder. */

@@ -22,12 +22,6 @@
 
 exception Internal
 
-external init : unit -> unit = "ocaml_flac_stubs_initialize"
-
-let () =
-  init () ;
-  Callback.register_exception "flac_exn_internal" Internal
-
 module Decoder = 
 struct
   type 'a dec
