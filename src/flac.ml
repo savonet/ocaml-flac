@@ -22,6 +22,9 @@
 
 exception Internal
 
+let () =
+  Callback.register_exception "flac_exn_internal" Internal
+
 module Decoder = 
 struct
   type 'a dec
