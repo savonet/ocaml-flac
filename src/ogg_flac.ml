@@ -33,9 +33,9 @@ struct
 
   external check_packet : Ogg.Stream.packet -> bool = "ocaml_flac_decoder_check_ogg"
 
-  external create : Ogg.Stream.packet -> Ogg.Stream.t -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec = "ocaml_flac_decoder_ogg_create"
+  external create : Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec = "ocaml_flac_decoder_ogg_create"
  
-  external update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.t -> unit = "ocaml_flac_decoder_ogg_update_os"
+  external update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.stream -> unit = "ocaml_flac_decoder_ogg_update_os"
 end
 
 module Encoder = 
@@ -51,7 +51,7 @@ struct
 
   type init_c = Ogg.Stream.packet -> unit
 
-  external create : (string * string) array -> Flac.Encoder.params -> Ogg.Stream.t -> init_c -> enc = "ocaml_flac_encoder_ogg_create"
+  external create : (string * string) array -> Flac.Encoder.params -> Ogg.Stream.stream -> init_c -> enc = "ocaml_flac_encoder_ogg_create"
 
   let create ?(comments=[]) params os =
     if params.Flac.Encoder.channels <= 0 then

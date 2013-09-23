@@ -1,3 +1,8 @@
+0.1.2 ()
+=====
+* Changed types to match new ocaml-ogg's API.
+  Should be fully backward compatible.
+
 0.1.1 (25-06-2012)
 =====
 * Fixed incorrect decoding of 24bit flac streams.

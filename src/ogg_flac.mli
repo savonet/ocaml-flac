@@ -59,11 +59,11 @@ sig
   val get_callbacks : Flac.Decoder.write -> ogg Flac.Decoder.callbacks
 
   (** Create an ogg/flac decoder *)
-  val create : Ogg.Stream.packet -> Ogg.Stream.t -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec
+  val create : Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec
 
-  (** Update the [Ogg.Stream.t] associated
+  (** Update the [Ogg.Stream.stream] associated
     * to the decoder. *)
-  val update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.t -> unit
+  val update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.stream -> unit
 end
 
 (** Encode ogg/flac data *)
@@ -102,7 +102,7 @@ sig
   val create : 
      ?comments:(string * string) list ->
      Flac.Encoder.params ->
-     Ogg.Stream.t -> 
+     Ogg.Stream.stream -> 
      ogg Flac.Encoder.t * Ogg.Stream.packet * (Ogg.Stream.packet list)
 
   (** Terminate an ogg/flac encoder. Causes the encoder
