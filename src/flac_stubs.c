@@ -515,7 +515,10 @@ CAMLprim value ocaml_flac_decoder_info(value d)
      m = caml_alloc_tuple(2);
      FLAC__StreamMetadata_VorbisComment coms = dec->callbacks.meta->data.vorbis_comment;
      // First comment is vendor string
-     Store_field(m,0,caml_copy_string((char *)coms.vendor_string.entry));
+     if (coms.vendor_string.entry != NULL)
+       Store_field(m,0,caml_copy_string((char *)coms.vendor_string.entry));
+     else
+       Store_field(m,0,caml_copy_string(""));
      // Now the other metadata
      tmp = caml_alloc_tuple(coms.num_comments);
      int i;
