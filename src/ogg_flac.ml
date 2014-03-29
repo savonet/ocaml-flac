@@ -79,7 +79,7 @@ struct
   external finish : enc -> unit = "ocaml_flac_encoder_ogg_finish"
 
   let finish e = 
-    let (e,p) = Obj.magic e in
+    let (e,_) = Obj.magic e in
     finish e
 
 end

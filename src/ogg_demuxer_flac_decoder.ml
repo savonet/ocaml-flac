@@ -20,8 +20,6 @@
 
 let check = Ogg_flac.Decoder.check_packet
 
-let buflen = 1024
-
 let decoder os =
   let ogg_dec = ref None in
   let packet = ref None in
