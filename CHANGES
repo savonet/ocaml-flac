@@ -3,6 +3,7 @@
 * Changed types to match new ocaml-ogg's API.
   Should be fully backward compatible.
 * Fix segfault when vendor string is empty.
+* Swich to Bytes API and String.uppercase_ascii
 
 0.1.1 (25-06-2012)
 =====

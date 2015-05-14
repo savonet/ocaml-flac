@@ -25,6 +25,30 @@ exception Internal
 let () =
   Callback.register_exception "flac_exn_internal" Internal
 
+exception Not_implemented
+
+module type StringWrapper =
+sig
+  include module type of String
+  val uppercase : string -> string
+end
+
+module StringWrapper : StringWrapper =
+struct
+  let uppercase _ = raise Not_implemented
+  let () =
+    try ignore(uppercase "") with Not_implemented -> ()
+  include String
+end
+
+module StringCompat =
+struct
+  let uppercase_ascii = StringWrapper.uppercase
+  let () =
+    try ignore(uppercase_ascii "") with Not_implemented -> ()
+  include String
+end
+
 module Decoder = 
 struct
   type 'a dec
@@ -102,7 +126,7 @@ struct
         String.index_from comment 0 '='
       in
       let c1 =
-        String.uppercase (String.sub comment 0 equal_pos)
+        StringCompat.uppercase_ascii (String.sub comment 0 equal_pos)
       in
       let c2 =
         String.sub comment (equal_pos + 1) ((String.length comment) - equal_pos - 1)
@@ -160,7 +184,7 @@ struct
 
     let create_from_fd write fd = 
       let read n =
-        let s = String.create n in
+        let s = Bytes.create n in
         let ret = Unix.read fd s 0 n in
         s,ret
       in
