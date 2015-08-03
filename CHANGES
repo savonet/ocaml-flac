@@ -1,4 +1,4 @@
-0.1.2 ()
+0.1.2 (03-08-2015)
 =====
 * Changed types to match new ocaml-ogg's API.
   Should be fully backward compatible.
