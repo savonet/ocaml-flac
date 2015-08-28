@@ -2,8 +2,6 @@ SOURCES=decode.ml
 RESULT=decode
 INCDIRS=../src @OCAMLOGG_INC@
 LIBS=unix ogg flac
-OCAMLC = /usr/bin/ocamlc -g 
-OCAMLOPT = /usr/bin/ocamlopt -g 
 
 all: nc
 
