@@ -86,7 +86,7 @@ let () =
      h.Flac.Decoder.File.comments
    else
      let read_f n = 
-       let s = String.create n in
+       let s = Bytes.create n in
        let ret = Unix.read fd s 0 n in
        s,ret
      in

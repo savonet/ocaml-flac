@@ -7,7 +7,7 @@ let dst = ref ""
 let buflen = ref 1024
 
 let input_string chan len =
-  let ans = String.create len in
+  let ans = Bytes.create len in
     (* TODO: check length *)
     ignore (input chan ans 0 len) ;
     ans
@@ -90,20 +90,44 @@ let _ =
       else
         let os = Ogg.Stream.create () in
         let oc = open_out !dst in
+        let s_o_f (h,b) = h ^ b in
+        let flush s =
+          let rec f v =
+            try
+              let v = v ^ (s_o_f (Ogg.Stream.flush_page s)) in
+              f v
+            with
+              | Ogg.Not_enough_data -> v
+          in
+          f ""
+        in
+        let pageout s =
+          s_o_f (Ogg.Stream.get_page s)
+        in
+        let pagesout s =
+          let rec f v =
+            try
+              let n = pageout s in
+              f (v ^ n)
+            with
+              | Ogg.Not_enough_data -> v
+          in
+          f ""
+        in
         let enc,p,l = Ogg_flac.Encoder.create ~comments params os in
         Ogg.Stream.put_packet os p;
-        output_string oc (Ogg.Stream.flush os) ;
+        output_string oc (flush os) ;
         List.iter (Ogg.Stream.put_packet os) l;
-        output_string oc (Ogg.Stream.flush os) ;
-        flush oc ;
+        output_string oc (flush os) ;
+        Pervasives.flush oc ;
         let encode buf =
             Flac.Encoder.process enc Ogg_flac.Encoder.callbacks
                                      buf;
-            output_string oc (Ogg.Stream.pagesout os);
+            output_string oc (pagesout os);
         in
         let finish () = 
           Flac.Encoder.finish enc Ogg_flac.Encoder.callbacks;
-          output_string oc (Ogg.Stream.flush os) ;
+          output_string oc (flush os) ;
           close_out oc
         in
         encode,finish
