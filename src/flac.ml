@@ -186,7 +186,7 @@ struct
       let read n =
         let s = Bytes.create n in
         let ret = Unix.read fd s 0 n in
-        s,ret
+        Bytes.to_string s,ret
       in
       let seek n =
         let n = Int64.to_int n in
@@ -228,7 +228,7 @@ struct
 
   type 'a priv
 
-  type write = string -> unit
+  type write = bytes -> unit
 
   type 'a callbacks = 
     { 
@@ -293,7 +293,7 @@ struct
 
     let create_from_fd ?comments params fd =
       let write s =
-        let len = String.length s in
+        let len = Bytes.length s in
         let rec f pos = 
           if pos < len then
             let ret = Unix.write fd s pos (len-pos) in
