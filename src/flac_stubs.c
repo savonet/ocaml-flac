@@ -787,7 +787,7 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params, value cal
                                    enc_tell_callback,
                                    NULL,
                                    (void*)&enc->callbacks);
-  caml_enter_blocking_section();
+  caml_leave_blocking_section();
 
   Free_values(enc);
 
