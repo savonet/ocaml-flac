@@ -36,7 +36,7 @@
 #define INT24_MAX 0x007fffffL
 #endif
 
-/* Thanks you
+/* Thank you
  * http://www.linux-nantes.org/~fmonnier/ocaml/ocaml-wrapping-c.php#ref_option */
 value flac_Val_some( value v )
 {   
@@ -738,7 +738,7 @@ value ocaml_flac_encoder_alloc(value comments, value params, struct custom_opera
   caml_enc->callbacks.private = NULL;
   caml_register_global_root(&caml_enc->callbacks.callbacks);
   caml_enc->callbacks.callbacks = Val_none;
-  caml_register_global_root(&caml_enc->callbacks.callbacks);
+  caml_register_global_root(&caml_enc->callbacks.tmp);
   caml_enc->callbacks.tmp = Val_none;
   caml_enc->buf = NULL;
   caml_enc->lines = NULL;

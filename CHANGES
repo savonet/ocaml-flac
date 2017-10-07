@@ -1,3 +1,7 @@
+0.1.3 ()
+=====
+* Fixed segfault when encoding due to tmp variable not registered as global root (typo).
+
 0.1.2 (03-08-2015)
 =====
 * Changed types to match new ocaml-ogg's API.
