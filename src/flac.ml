@@ -228,7 +228,7 @@ struct
 
   type 'a priv
 
-  type write = bytes -> unit
+  type write = Bytes.t -> unit
 
   type 'a callbacks = 
     { 
