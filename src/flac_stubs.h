@@ -35,7 +35,6 @@ typedef struct ocaml_flac_decoder_callbacks {
   void *private;
   /* This is used for callback from caml. */ 
   value callbacks;
-  value tmp;
   FLAC__StreamMetadata_StreamInfo *info;
   FLAC__StreamMetadata *meta;
 } ocaml_flac_decoder_callbacks;
@@ -70,7 +69,6 @@ void dec_error_callback(const FLAC__StreamDecoder *decoder,
 typedef struct ocaml_flac_encoder_callbacks {
   /* This is used by the caml encoder. */
   value callbacks;
-  value tmp;
   /* This is used by the ogg encoder. */
   void *private;
 } ocaml_flac_encoder_callbacks;

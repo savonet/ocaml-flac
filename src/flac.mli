@@ -39,9 +39,9 @@ sig
     * (* Create callbacks *)
     * let callbacks = Flac.Decoder.get_callbacks input write in
     * (* Create an unitialized decoder *)
-    * let decoder = Flac.Decoder.create in
+    * let decoder = Flac.Decoder.create callbacks in
     * (* Initialize decoder *)
-    * let decoder,info,comments = Flac.Decoder.init decoder in
+    * let decoder,info,comments = Flac.Decoder.init decoder callbacks in
     * (..do something with info and comments..)
     * (* Decode data *)
     * match Flac.Decoder.state decoder c with

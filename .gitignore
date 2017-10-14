@@ -12,11 +12,13 @@ src/Makefile
 src/._bcdi/
 src/._d/
 src/._ncdi/
-src/*.a
-src/*.cm*
-src/*.o
-src/*.so
+*.a
+*.cm*
+*.o
+*.so
 config.h
 config.h.in
 examples/Makefile.decode
 examples/Makefile.encode
+examples/decode
+examples/encode

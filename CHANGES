@@ -1,3 +1,10 @@
+0.1.4 ()
+=====
+* Use caml_acquire_runtime_system/caml_release_runtime_system for clarity
+* Register global roots using caml_register_generational_global_root
+* Remove tmp field from encoder and decoder and use proper variable
+  registration when appropriate.
+
 0.1.3 (07-10-2017)
 =====
 * Fixed segfault in encoder.
