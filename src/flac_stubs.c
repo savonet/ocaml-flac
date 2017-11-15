@@ -350,10 +350,14 @@ static FLAC__StreamDecoderReadStatus dec_read_callback(const FLAC__StreamDecoder
   caml_acquire_runtime_system(); 
 
   value ret = caml_callback(callbacks->read,Val_int(*bytes));
+  caml_register_generational_global_root(&ret);
+
   char *data = String_val(Field(ret,0));
   int len = Int_val(Field(ret,1));
   memcpy(buffer,data,len);
   *bytes = len;
+
+  caml_remove_generational_global_root(&ret);
 
   caml_release_runtime_system();
 
@@ -669,8 +673,10 @@ FLAC__StreamEncoderWriteStatus enc_write_callback(const FLAC__StreamEncoder *enc
   caml_acquire_runtime_system();
 
   value buf = caml_alloc_string(bytes);
+  caml_register_generational_global_root(&buf);
   memcpy(String_val(buf),buffer,bytes);
   caml_callback(callbacks->write,buf);
+  caml_remove_generational_global_root(&buf);
 
   caml_release_runtime_system();
 
