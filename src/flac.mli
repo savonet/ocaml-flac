@@ -296,7 +296,7 @@ sig
   type 'a t
 
   (** Type of a write callback *)
-  type write = bytes -> unit
+  type write = Bytes.t -> unit
 
   (** Type of a set of callbacks *)
   type 'a callbacks
