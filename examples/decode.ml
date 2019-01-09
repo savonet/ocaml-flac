@@ -88,7 +88,7 @@ let () =
      let read_f n = 
        let s = Bytes.create n in
        let ret = Unix.read fd s 0 n in
-       s,ret
+       Bytes.to_string s,ret
      in
      let sync = Ogg.Sync.create read_f in
      let test_flac () = 
