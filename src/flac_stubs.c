@@ -674,9 +674,12 @@ FLAC__StreamEncoderWriteStatus enc_write_callback(const FLAC__StreamEncoder *enc
 
   value buf = caml_alloc_string(bytes);
   caml_register_generational_global_root(&buf);
+
   memcpy(String_val(buf),buffer,bytes);
-  caml_callback(callbacks->write,buf);
+
+  value res = caml_callback_exn(callbacks->write,buf);
   caml_remove_generational_global_root(&buf);
+  if (Is_exception_result(res)) caml_raise(Extract_exception(res));
 
   caml_release_runtime_system();
 
