@@ -8,8 +8,7 @@ let buflen = ref 1024
 
 let input_string chan len =
   let ans = Bytes.create len in
-    (* TODO: check length *)
-    ignore (input chan ans 0 len) ;
+    really_input chan ans 0 len ;
     Bytes.to_string ans
 
 let input_int chan =
@@ -139,7 +138,10 @@ let _ =
       Printf.printf
         "Encoding to: %s %d channels, %d Hz, compression level: %d\nPlease wait...\n%!"
         (if !ogg then "OGG/FLAC" else "FLAC") channels infreq !compression;
-      if input_string ic 4 <> "data" then invalid_arg "No data tag";
+      while input_string ic 4 <> "data" do
+        let len = input_int ic in
+        really_input ic (Bytes.create len) 0 len
+      done;
       (* This ensures the actual audio data will start on a new page, as per
        * spec. *)
       let buflen = channels*bits/8*(!buflen) in
