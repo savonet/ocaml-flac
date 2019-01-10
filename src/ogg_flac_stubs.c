@@ -52,8 +52,8 @@ static void finalize_private(ocaml_flac_ogg_private *p)
 {
   if (p->data != NULL)
     free(p->data);
-  caml_remove_global_root(&p->os);
-  caml_remove_global_root(&p->init_c);
+  caml_remove_generational_global_root(&p->os);
+  caml_remove_generational_global_root(&p->init_c);
   free(p);
 }
 
@@ -277,10 +277,11 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
   ocaml_flac_encoder_callbacks *callbacks = (ocaml_flac_encoder_callbacks *)client_data ;
   ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)callbacks->private;
 
-  /* Take the lock to prevent the Gc from acessing
+  /* Take the lock to prevent the Gc from accessing
    * concurrently this variable. */
   caml_acquire_runtime_system();
   ogg_stream_state *os = Stream_state_val(h->os);
+  caml_release_runtime_system();
 
   /* Grab a new ogg_packet */
   ogg_packet op;
@@ -301,7 +302,7 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
    * are header packets and are passed
    * back to caml through a callback. */
   } else {
-    /* This first packet needs to  
+    /* This second packet needs to  
      * have the ogg header. */
     h->header_count++;
     if (h->header_count == 2)
@@ -322,11 +323,10 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
       op.b_o_s = 0;
       op.e_o_s = 0;
     }
-    if (h->header_count > 1)
-      caml_callback(h->init_c,value_of_packet(&op));
+    caml_acquire_runtime_system();
+    caml_callback(h->init_c,value_of_packet(&op));
+    caml_release_runtime_system();
   }
-
-  caml_release_runtime_system();
 
   return FLAC__STREAM_ENCODER_WRITE_STATUS_OK ;
 }
@@ -338,8 +338,6 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
 
   ret = ocaml_flac_encoder_alloc(comments,params,&ogg_encoder_ops);
   ocaml_flac_encoder *caml_enc = Encoder_val(ret);
-
-  Fill_enc_values(caml_enc, init_c);
 
   ocaml_flac_ogg_private *priv = malloc(sizeof(ocaml_flac_ogg_private));
   if (priv == NULL)
@@ -365,10 +363,6 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params, value
                                    NULL,
                                    (void*)&caml_enc->callbacks);
   caml_acquire_runtime_system();
-
-  Free_enc_values(caml_enc);
-  caml_remove_generational_global_root(&priv->os);
-  caml_remove_generational_global_root(&priv->init_c);
 
   CAMLreturn(ret);
 }

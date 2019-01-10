@@ -22,3 +22,4 @@ examples/Makefile.decode
 examples/Makefile.encode
 examples/decode
 examples/encode
+._d/
