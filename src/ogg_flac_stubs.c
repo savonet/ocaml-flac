@@ -324,19 +324,21 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
       op.e_o_s = 0;
     }
 
-    caml_acquire_runtime_system();
+    if (h->header_count > 1) {
+      caml_acquire_runtime_system();
 
-    value p = value_of_packet(&op);
+      value p = value_of_packet(&op);
 
-    caml_register_generational_global_root(&p);
+      caml_register_generational_global_root(&p);
 
-    value ret = caml_callback_exn(h->init_c,p);
+      value ret = caml_callback_exn(h->init_c,p);
 
-    caml_remove_generational_global_root(&p);
+      caml_remove_generational_global_root(&p);
 
-    if (Is_exception_result(ret)) caml_raise(Extract_exception(ret));
+      if (Is_exception_result(ret)) caml_raise(Extract_exception(ret));
 
-    caml_release_runtime_system();
+      caml_release_runtime_system();
+    }
   }
 
   return FLAC__STREAM_ENCODER_WRITE_STATUS_OK ;
