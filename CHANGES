@@ -1,4 +1,4 @@
-0.1.4 ()
+0.1.4 (23-01-2019)
 =====
 * Use caml_acquire_runtime_system/caml_release_runtime_system for clarity
 * Register global roots using caml_register_generational_global_root
