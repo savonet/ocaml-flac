@@ -41,7 +41,7 @@ let decoder os =
           let ogg_dec = 
             match !ogg_dec with
               | None ->
-                  let dec = Ogg_flac.Decoder.create packet !os dummy_c in
+                  let dec = Ogg_flac.Decoder.create packet !os in
                   ogg_dec := Some dec ;
                   dec
               | Some dec -> dec

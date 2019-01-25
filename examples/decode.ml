@@ -55,7 +55,7 @@ let () =
     ignore
     "decode [options]"
 
-let () =
+let process () =
   let fd =
     Printf.printf "Opening input file %S\n%!" !infile;
     Unix.openfile !infile [Unix.O_RDONLY] 0o640
@@ -112,7 +112,7 @@ let () =
            Ogg.Stream.put_page os page
        in
        let callbacks = Ogg_flac.Decoder.get_callbacks write in
-       let dec = Ogg_flac.Decoder.create packet os callbacks in
+       let dec = Ogg_flac.Decoder.create packet os in
        let rec info () =
         try 
          Flac.Decoder.init dec callbacks
@@ -200,7 +200,10 @@ let () =
   decode () ; 
   Printf.printf "\n";
   close_out oc ;
-  Unix.close fd ;
+  Unix.close fd
+
+let () =
+  process ();
   (* We have global root values
    * so we need to do two full major.. *)
   Gc.full_major () ;

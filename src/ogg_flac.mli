@@ -59,7 +59,7 @@ sig
   val get_callbacks : Flac.Decoder.write -> ogg Flac.Decoder.callbacks
 
   (** Create an ogg/flac decoder *)
-  val create : Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.callbacks -> ogg Flac.Decoder.dec
+  val create : Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.dec
 
   (** Update the [Ogg.Stream.stream] associated
     * to the decoder. *)

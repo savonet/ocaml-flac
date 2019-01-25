@@ -192,7 +192,7 @@ CAMLprim value ocaml_flac_decoder_ogg_update_os(value v, value os)
   CAMLparam2(v,os);
   ocaml_flac_decoder *dec = Decoder_val(v);
   ocaml_flac_ogg_private *priv = dec->callbacks.private;
-  priv->os = os;
+  caml_modify_generational_global_root(&priv->os, os);
   CAMLreturn(Val_unit);
 }
 
@@ -215,10 +215,10 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os)
   memcpy(priv->data,p->packet,p->bytes);
   priv->bytes = p->bytes;
   priv->offset = 9;
-  caml_register_global_root(&priv->os);
   priv->os = os;
-  caml_register_global_root(&priv->init_c);
+  caml_register_generational_global_root(&priv->os);
   priv->init_c = Val_none;
+  caml_register_generational_global_root(&priv->init_c);
 
   dec->callbacks.private = (void*)priv;
 
