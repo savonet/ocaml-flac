@@ -55,15 +55,12 @@ static inline int16_t bswap_16 (int16_t x) { return ((((x) >> 8) & 0xff) | (((x)
 static inline int16_t clip(double s)
 {
   if (s < -1)
-  {
     return INT16_MIN;
-  }
-  else if (s > 1)
-  {
+
+  if (s > 1)
     return INT16_MAX;
-  }
-  else
-    return (s * INT16_MAX);
+
+  return (s * INT16_MAX);
 }
 
 CAMLprim value caml_flac_float_to_s16le(value a)
@@ -801,6 +798,12 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params, value cal
 
 static inline FLAC__int32 sample_from_double(double x, unsigned bps)
 {
+  if (x < -1) {
+    x = -1;
+  } else if (x > 1) {
+    x = 1;
+  }
+
   switch (bps)
   {
     case 8:
