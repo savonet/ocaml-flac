@@ -471,6 +471,8 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks)
   );
   caml_acquire_runtime_system();
 
+  Free_dec_values(dec);
+
   CAMLreturn(ans);
 }
 
@@ -485,6 +487,8 @@ CAMLprim value ocaml_flac_decoder_init(value d, value c)
   FLAC__stream_decoder_process_until_end_of_metadata(dec->decoder);
   caml_acquire_runtime_system();
 
+  Free_dec_values(dec);
+
   CAMLreturn(Val_unit);
 }
 
@@ -494,6 +498,7 @@ CAMLprim value ocaml_flac_decoder_state(value d, value c)
   ocaml_flac_decoder *dec = Decoder_val(d);
   Fill_dec_values(dec,c);
   int ret = FLAC__stream_decoder_get_state(dec->decoder);
+  Free_dec_values(dec);
   CAMLreturn(val_of_state(ret));
 }
 
@@ -555,6 +560,8 @@ CAMLprim value ocaml_flac_decoder_process(value d, value c)
   FLAC__stream_decoder_process_single(dec->decoder);
   caml_acquire_runtime_system();
 
+  Free_dec_values(dec);
+
   CAMLreturn(Val_unit);
 }
 
@@ -571,6 +578,8 @@ CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos)
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_seek_absolute(dec->decoder,offset);
   caml_acquire_runtime_system();
+
+  Free_dec_values(dec);
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -591,6 +600,8 @@ CAMLprim value ocaml_flac_decoder_reset(value d, value c)
   ret = FLAC__stream_decoder_reset(dec->decoder);
   caml_acquire_runtime_system();
 
+  Free_dec_values(dec);
+
   if (ret == true)
     CAMLreturn(Val_true);
   else
@@ -609,6 +620,8 @@ CAMLprim value ocaml_flac_decoder_flush(value d, value c)
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_flush(dec->decoder);
   caml_acquire_runtime_system();
+
+  Free_dec_values(dec);
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -793,6 +806,8 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params, value cal
                                    (void*)&enc->callbacks);
   caml_acquire_runtime_system();
 
+  Free_enc_values(enc);
+
   CAMLreturn(ret);
 }
 
@@ -853,6 +868,8 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data, valu
   FLAC__stream_encoder_process(enc->encoder,(const FLAC__int32 * const*)enc->buf,samples);
   caml_acquire_runtime_system();
 
+  Free_enc_values(enc);
+
   CAMLreturn(Val_unit);
 }
 
@@ -866,6 +883,8 @@ CAMLprim value ocaml_flac_encoder_finish(value _enc, value c)
   caml_release_runtime_system();
   FLAC__stream_encoder_finish(enc->encoder);
   caml_acquire_runtime_system();
+
+  Free_enc_values(enc);
 
   CAMLreturn(Val_unit);
 }
