@@ -18,6 +18,21 @@ CFLAGS="$CFLAGS -I .."
 # Check endianess
 AC_C_BIGENDIAN(AC_DEFINE([BIGENDIAN], [1], [The target is big endian]),[])
 
+OCAML_VERSION="`$OCAMLC -version`"
+OCAML_MAJOR="`echo $OCAML_VERSION | cut -d'.' -f 1`"
+AC_SUBST(OCAML_MAJOR)
+OCAML_MINOR="`echo $OCAML_VERSION | cut -d'.' -f 2`"
+AC_SUBST(OCAML_MINOR)
+OCAML_REVISION="`echo $OCAML_VERSION | cut -d'.' -f 3`"
+AC_SUBST(OCAML_REVISION)
+AC_MSG_CHECKING([for ocamlc version])
+AC_MSG_RESULT([$OCAML_MAJOR.$OCAML_MINOR.$OCAML_REVISION])
+
+AC_OCAML_COMPARE_VERSION([$OCAML_MAJOR.$OCAML_MINOR.$OCAML_REVISION],[4.03.0])
+if test -z "${VERSION_OK}"; then
+  AC_MSG_ERROR([version 4.03.0 or more of the OCaml compiler is required to build liquidsoap])
+fi
+
 # Ogg variables
 OCAMLOGG_REQUIRES="ogg"
 OCAMLOGG_META="package \"ogg\" (

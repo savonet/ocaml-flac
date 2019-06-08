@@ -9,7 +9,7 @@ Please read the COPYING file before using this software.
 Prerequisites:
 ==============
 
-- ocaml >= 3.10.2 (haven't tried earlier versions)
+- ocaml >= 4.03.0
 
 - flac >= 1.2.1 (haven't tried earlier versions)
 

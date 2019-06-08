@@ -2,6 +2,7 @@
 =====
 * More cleanup.
 * Make sure input samples always fall withing the [-1;1] range. (#6)
+* Remove StringCompat, bump OCaml version to >= 4.03
 
 0.1.4 (23-01-2019)
 =====
