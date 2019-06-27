@@ -1,4 +1,4 @@
-0.1.5 ()
+0.1.5 (27-06-2019)
 =====
 * More cleanup.
 * Make sure input samples always fall withing the [-1;1] range. (#6)
