@@ -1,10 +1,10 @@
 opam-version: "2.0"
-version: "dev"
+name: "flac"
 maintainer: "Romain Beauxis <toots@rastageeks.org>"
 authors: "The Savonet Team <savonet-users@lists.sourceforge.net>"
 homepage: "https://github.com/savonet/ocaml-flac"
 build: [
-  ["./bootstrap"]
+  ["./bootstrap"] {dev}
   ["./configure" "--prefix" prefix] {os != "macos"}
   [
     "./configure"
@@ -38,6 +38,5 @@ depexts: [
 ]
 bug-reports: "https://github.com/savonet/ocaml-flac/issues"
 dev-repo: "git+https://github.com/savonet/ocaml-flac.git"
-synopsis:
-  "Interface for the Free Lossless Audio Codec otherwise known as FLAC"
+synopsis: "Interface for the Free Lossless Audio Codec otherwise known as FLAC"
 flags: light-uninstall
