@@ -5,7 +5,7 @@ maintainer: "Romain Beauxis <toots@rastageeks.org>"
 authors: "The Savonet Team <savonet-users@lists.sourceforge.net>"
 homepage: "https://github.com/savonet/ocaml-flac"
 build: [
-  ["./bootstrap"] {pinned}
+  ["./bootstrap"] {dev}
   ["./configure" "--prefix" prefix] {os != "macos"}
   [
     "./configure"
@@ -15,7 +15,7 @@ build: [
     "--prefix"
     prefix
   ] {os = "macos"}
-  [make "clean"] {pinned}
+  [make "clean"] {dev}
   [make]
 ]
 install: [
