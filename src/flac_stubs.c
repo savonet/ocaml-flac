@@ -172,6 +172,7 @@ void finalize_decoder(value e)
 {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
+  caml_remove_generational_global_root(&dec->callbacks.data);
   caml_remove_generational_global_root(&dec->callbacks.read);
   caml_remove_generational_global_root(&dec->callbacks.seek);
   caml_remove_generational_global_root(&dec->callbacks.tell);
@@ -346,15 +347,14 @@ static FLAC__StreamDecoderReadStatus dec_read_callback(const FLAC__StreamDecoder
 
   caml_acquire_runtime_system(); 
 
-  value ret = caml_callback(callbacks->read,Val_int(*bytes));
-  caml_register_generational_global_root(&ret);
+  int readlen = *bytes;
+  int datalen = caml_string_length(callbacks->data);
+  if (datalen < readlen) readlen = datalen;
 
-  char *data = String_val(Field(ret,0));
-  int len = Int_val(Field(ret,1));
-  memcpy(buffer,data,len);
-  *bytes = len;
+  readlen = Int_val(caml_callback3(callbacks->read,callbacks->data,Val_int(0),Val_int(readlen)));
 
-  caml_remove_generational_global_root(&ret);
+  memcpy(buffer,String_val(callbacks->data),readlen);
+  *bytes = readlen;
 
   caml_release_runtime_system();
 
@@ -419,12 +419,14 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops)
     caml_raise_out_of_memory();
 
   dec->decoder = FLAC__stream_decoder_new();
+  dec->callbacks.data = caml_alloc_string(1024);
   dec->callbacks.read = Val_none;
   dec->callbacks.seek = Val_none;
   dec->callbacks.tell = Val_none;
   dec->callbacks.length = Val_none;
   dec->callbacks.eof = Val_none;
   dec->callbacks.write = Val_none;
+  caml_register_generational_global_root(&dec->callbacks.data);
   caml_register_generational_global_root(&dec->callbacks.read);
   caml_register_generational_global_root(&dec->callbacks.seek);
   caml_register_generational_global_root(&dec->callbacks.tell);

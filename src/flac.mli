@@ -83,7 +83,7 @@ sig
   type write = float array array -> unit
 
   (** Type of  a read callback. *)
-  type read = int -> string*int
+  type read = bytes -> int -> int -> int
 
   (** Type of a collection of callbacks. *)
   type 'a callbacks 

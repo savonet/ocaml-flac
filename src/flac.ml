@@ -33,7 +33,7 @@ struct
 
   type write = float array array -> unit
 
-  type read = int -> string*int
+  type read = bytes -> int -> int -> int
 
   type 'a callbacks = 
     {
@@ -159,11 +159,7 @@ struct
      } 
 
     let create_from_fd write fd = 
-      let read n =
-        let s = Bytes.create n in
-        let ret = Unix.read fd s 0 n in
-        Bytes.to_string s,ret
-      in
+      let read = Unix.read fd in
       let seek n =
         let n = Int64.to_int n in
         ignore(Unix.lseek fd n Unix.SEEK_SET)
