@@ -24,7 +24,7 @@ install: [
 depends: [
   "ocaml" {>= "4.03"}
   "ocamlfind" {build}
-  "ogg"
+  "ogg" {>= "0.6.0"}
 ]
 depexts: [
   ["flac-dev"] {os-distribution = "alpine"}

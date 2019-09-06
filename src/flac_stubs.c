@@ -17,10 +17,12 @@
  *
  */
 
+#include <assert.h>
 #include <memory.h>
 #include <stdint.h>
 
 #include <caml/alloc.h>
+#include <caml/bigarray.h>
 #include <caml/callback.h>
 #include <caml/custom.h>
 #include <caml/fail.h>
@@ -162,9 +164,6 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
     caml_raise_constant(*caml_named_value("flac_exn_internal"));
   }
 }
-
-/* Caml abstract value containing the decoder. */
-#define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
 void finalize_decoder(value e) {
   ocaml_flac_decoder *dec = Decoder_val(e);
@@ -809,7 +808,8 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   int chans = Wosize_val(data);
-  int samples = Wosize_val(Field(data, 0)) / Double_wosize;
+  assert(chans > 0);
+  int samples = Caml_ba_array_val(Field(data, 0))->dim[0];
   int i;
   int c;
 
@@ -828,9 +828,9 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
   for (c = 0; c < chans; c++) {
     if (c > 0)
       enc->buf[c] = enc->buf[c - 1] + samples;
+    float *b = Caml_ba_data_val(Field(data, c));
     for (i = 0; i < samples; i++)
-      enc->buf[c][i] =
-          sample_from_double(Double_field(Field(data, c), i), Int_val(bps));
+      enc->buf[c][i] = sample_from_double(b[i], Int_val(bps));
   }
 
   Fill_enc_values(enc, cb);

@@ -2,6 +2,7 @@
 =====
 * Switch to bytes read callback.
 * Fixed read callback return value when reaching end of file. (savonet/liquidsoap#1146)
+* Use bigarrays for audio data.
 
 0.1.5 (27-06-2019)
 =====

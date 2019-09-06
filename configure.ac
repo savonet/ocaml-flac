@@ -1,4 +1,3 @@
-
 # check for one particular file of the sources 
 AC_INIT(
   [ocaml-flac],
