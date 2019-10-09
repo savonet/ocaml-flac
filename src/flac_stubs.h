@@ -34,6 +34,7 @@ typedef struct ocaml_flac_decoder_callbacks {
   /* This is used for ogg callbacks. */
   void *private;
   /* This is used for callback from caml. */ 
+  value data;
   value read;
   value seek;
   value tell;

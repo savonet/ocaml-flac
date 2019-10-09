@@ -18,6 +18,7 @@ src/._ncdi/
 *.so
 config.h
 config.h.in
+config.h.in~
 examples/Makefile.decode
 examples/Makefile.encode
 examples/decode

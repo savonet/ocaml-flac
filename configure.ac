@@ -1,6 +1,9 @@
 
 # check for one particular file of the sources 
-AC_INIT([ocaml-flac],[0.1.5],[savonet-users@lists.sourceforge.net])
+AC_INIT(
+  [ocaml-flac],
+  m4_esyscmd([cat flac.opam | grep ^version | sed 's/version: "\([^"]*\)"/\1/' | tr -d '\r\n']),
+  [savonet-users@lists.sourceforge.net])
 
 VERSION=$PACKAGE_VERSION
 AC_MSG_RESULT([configuring $PACKAGE_STRING])
