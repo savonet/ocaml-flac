@@ -11,9 +11,9 @@ addons:
 before_install:
   - export OPAMYES=1
   - opam init
-  - opam install -q -y ocamlfind base-bytes
+  - opam install -y ocamlfind base-bytes
   - eval `opam config env`
   - git clone https://github.com/savonet/ocaml-ogg.git
-  - cd ocaml-ogg && git submodule init && git submodule update && ./bootstrap && ./configure && make && sudo make install
+  - cd ocaml-ogg && git submodule init && git submodule update && opam install -y .
 
 script: ./bootstrap && ./configure && make && make -C examples
