@@ -23,9 +23,7 @@
 (** {1 Ogg/flac encoder/decoder modules for OCaml} *)
 
 (** Decode ogg/flac data *)
-module Decoder : 
-sig
-
+module Decoder : sig
   (** {3 Usage} *)
 
   (** Usage is similar to the case
@@ -50,7 +48,7 @@ sig
 
   (** Variant type for ogg/flac decoder *)
   type ogg
- 
+
   (** Check if an ogg packet is the first
     * packet of an ogg/flac stream. *)
   val check_packet : Ogg.Stream.packet -> bool
@@ -67,9 +65,7 @@ sig
 end
 
 (** Encode ogg/flac data *)
-module Encoder : 
-sig
-
+module Encoder : sig
   (** {3 Usage} *)
 
   (** Usage is similar to the case
@@ -78,7 +74,6 @@ sig
     * callbacks. *)
 
   (** {3 Types} *)
-
 
   (** Variant type for ogg/flac encoder *)
   type ogg
@@ -99,23 +94,20 @@ sig
     * pages before and not containing any audio data. 
     * See ogg stream documentation for more information 
     * on ogg data muxing. *)
-  val create : 
-     ?comments:(string * string) list ->
-     Flac.Encoder.params ->
-     Ogg.Stream.stream -> 
-     ogg Flac.Encoder.t * Ogg.Stream.packet * (Ogg.Stream.packet list)
+  val create :
+    ?comments:(string * string) list ->
+    Flac.Encoder.params ->
+    Ogg.Stream.stream ->
+    ogg Flac.Encoder.t * Ogg.Stream.packet * Ogg.Stream.packet list
 
   (** Terminate an ogg/flac encoder. Causes the encoder
     * to flush remaining encoded data. The encoder should not
     * be used anymore afterwards. *)
   val finish : ogg Flac.Encoder.t -> unit
-
 end
 
 (** Ogg/flac skeleton module *)
-module Skeleton :
-sig
-
+module Skeleton : sig
   (** Generate a flac fisbone packet with
     * these parameters, to use in an ogg skeleton.
     * Default value for [start_granule] is [Int64.zero],
@@ -125,7 +117,8 @@ sig
   val fisbone :
     ?start_granule:Int64.t ->
     ?headers:(string * string) list ->
-    serialno:Nativeint.t -> samplerate:Int64.t -> unit -> Ogg.Stream.packet
-
+    serialno:Nativeint.t ->
+    samplerate:Int64.t ->
+    unit ->
+    Ogg.Stream.packet
 end
-

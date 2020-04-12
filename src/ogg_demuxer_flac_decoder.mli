@@ -23,4 +23,3 @@
 
 (** Register the decoder. *)
 val register : unit -> unit
-

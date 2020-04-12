@@ -20,12 +20,10 @@
 
 (* Author; Romain Beauxis <toots@rastageeks.org> *)
 
- (** {1 Native FLAC decoder/encoder modules for OCaml} *)
+(** {1 Native FLAC decoder/encoder modules for OCaml} *)
 
 (** Decode native FLAC data *)
-module Decoder : 
-sig
-
+module Decoder : sig
   (** {3 Usage} *)
 
   (** A typical use of the FLAC decoder is the following:
@@ -67,9 +65,7 @@ sig
     * - The variant type for decoder and callbacks is used
     *   to make sure that different type of decoders 
     *   (generic, file, ogg) are only used with the same
-    *   type of callbacks. *) 
-
-
+    *   type of callbacks. *)
 
   (** {3 Types } *)
 
@@ -86,55 +82,49 @@ sig
   type read = bytes -> int -> int -> int
 
   (** Type of a collection of callbacks. *)
-  type 'a callbacks 
+  type 'a callbacks
 
   (** Generic variant type for callbacks and decoder. *)
   type generic
 
   (** Info about decoded FLAC data. *)
-  type info =
-    {
-      sample_rate : int;
-      channels : int;
-      bits_per_sample : int;
-      total_samples : int64;
-      md5sum : string
-    }
+  type info = {
+    sample_rate : int;
+    channels : int;
+    bits_per_sample : int;
+    total_samples : int64;
+    md5sum : string;
+  }
 
   (** (Vorbis) comments of decoded FLAC data. *)
-  type comments = string * ((string*string) list)
+  type comments = string * (string * string) list
 
   (** Possible states of a decoder. *)
   type state =
-    [
-        (** The decoder is ready to search for metadata. *)
-        `Search_for_metadata
-        (** The decoder is ready to or is in the process of reading metadata. *)
-      | `Read_metadata
-        (** The decoder is ready to or is in the process of searching for the
-        * frame sync code. *)
-      | `Search_for_frame_sync
-        (** The decoder is ready to or is in the process of reading a frame. *)
-      | `Read_frame
-        (** The decoder has reached the end of the stream. *)
-      | `End_of_stream
-        (** An error occurred in the underlying Ogg layer. *)
-      | `Ogg_error
-        (** An error occurred while seeking.  The decoder must be flushed
-          * or reset before decoding can continue. *)
-      | `Seek_error
-        (** The decoder was aborted by the read callback. *)
-      | `Aborted 
-        (** An error occurred allocating memory.  The decoder is in an invalid
-          * state and can no longer be used. *)
-      | `Memory_allocation_error
-        (** This state is seen in the case of 
-          * an uninitialized ogg decoder. *)
-      | `Uninitialized ]
-
+    [ (* The decoder is ready to search for metadata. *)
+      `Search_for_metadata
+      (* The decoder is ready to or is in the process of reading metadata. *)
+    | `Read_metadata
+      (* The decoder is ready to or is in the process of searching for the
+         frame sync code. *)
+    | `Search_for_frame_sync
+      (* The decoder is ready to or is in the process of reading a frame. *)
+    | `Read_frame (* The decoder has reached the end of the stream. *)
+    | `End_of_stream (* An error occurred in the underlying Ogg layer. *)
+    | `Ogg_error
+      (* An error occurred while seeking.  The decoder must be flushed
+         or reset before decoding can continue. *)
+    | `Seek_error (* The decoder was aborted by the read callback. *)
+    | `Aborted
+      (* An error occurred allocating memory.  The decoder is in an invalid
+         state and can no longer be used. *)
+    | `Memory_allocation_error
+      (* This state is seen in the case of
+         an uninitialized ogg decoder. *)
+    | `Uninitialized ]
 
   (** {3 Exceptions } *)
-  
+
   (** An error in the stream caused the decoder to lose synchronization. *)
   exception Lost_sync
 
@@ -155,11 +145,13 @@ sig
 
   (** Create a set of callbacks. *)
   val get_callbacks :
-           ?seek:(int64 -> unit) ->
-           ?tell:(unit -> int64) ->
-           ?length:(unit -> int64) ->
-           ?eof:(unit -> bool) ->
-           read -> write -> generic callbacks
+    ?seek:(int64 -> unit) ->
+    ?tell:(unit -> int64) ->
+    ?length:(unit -> int64) ->
+    ?eof:(unit -> bool) ->
+    read ->
+    write ->
+    generic callbacks
 
   (** Create an uninitialized decoder. *)
   val create : 'a callbacks -> 'a dec
@@ -167,7 +159,7 @@ sig
   (** Initialize a decoder. The decoder will be used to decode
     * all metadata. Initial audio data shall be immediatly available
     * after this call. *)
-  val init : 'a dec -> 'a callbacks -> ('a t) * info * (comments option)
+  val init : 'a dec -> 'a callbacks -> 'a t * info * comments option
 
   (** Decode one frame of audio data. *)
   val process : 'a t -> 'a callbacks -> unit
@@ -213,9 +205,7 @@ sig
   val to_s16le : float array array -> string
 
   (** Local file decoding. *)
-  module File :
-  sig
-
+  module File : sig
     (** Convenience module to
       * decode local files *)
 
@@ -225,17 +215,16 @@ sig
     type file
 
     (* Handler for file decoder *)
-    type handle =
-     {
-       fd : Unix.file_descr ;
-       dec : file t ;
-       (* These callback support [seek] and [tell]
-        * if the underlying [Unix.file_descriptor]
-        * supports them. *)
-       callbacks : file callbacks ;
-       info : info ;
-       comments : (string * ((string * string) list)) option ;
-     }
+    type handle = {
+      fd : Unix.file_descr;
+      dec : file t;
+      (* These callback support [seek] and [tell]
+       * if the underlying [Unix.file_descriptor]
+       * supports them. *)
+      callbacks : file callbacks;
+      info : info;
+      comments : (string * (string * string) list) option;
+    }
 
     (** {3 Functions} *)
 
@@ -249,13 +238,10 @@ sig
     (** Create a file decoder from a file URI *)
     val create : write -> string -> handle
   end
-
 end
 
 (** Encode native FLAC data *)
-module Encoder : 
-sig
-
+module Encoder : sig
   (** {3 Usage} *)
 
   (** A typical use of the FLAC encoder is the following:
@@ -305,14 +291,13 @@ sig
   type generic
 
   (** Type of encoding parameters *)
-  type params =
-    {
-      channels : int ;
-      bits_per_sample : int ;
-      sample_rate : int ;
-      compression_level : int option;
-      total_samples : int64 option ;
-    }
+  type params = {
+    channels : int;
+    bits_per_sample : int;
+    sample_rate : int;
+    compression_level : int option;
+    total_samples : int64 option;
+  }
 
   (** (Vorbis) comments for encoding *)
   type comments = (string * string) list
@@ -327,9 +312,7 @@ sig
 
   (** Create a set of encoding callbacks *)
   val get_callbacks :
-       ?seek:(int64 -> unit) ->
-       ?tell:(unit -> int64) -> 
-       write -> generic callbacks
+    ?seek:(int64 -> unit) -> ?tell:(unit -> int64) -> write -> generic callbacks
 
   (** Create an encoder *)
   val create : ?comments:comments -> params -> 'a callbacks -> 'a t
@@ -345,43 +328,39 @@ sig
   (** {3 Convenience} *)
 
   (** Convert S16LE pcm data to an audio array for 
-    * encoding WAV and raw PCM to flac. *) 
+    * encoding WAV and raw PCM to flac. *)
   val from_s16le : string -> int -> float array array
 
   (** Encode to a local file *)
-  module File :
-  sig
-
+  module File : sig
     (** Convenience module to encode to a local native FLAC file. *)
-    
+
     (** {3 Types} *)
 
     (** Generic variant type for file encoder *)
     type file
 
     (** Handle for file encoder *)
-    type handle =
-     {
-       fd : Unix.file_descr ;
-       enc : file t ;
-       callbacks : file callbacks
-     }
+    type handle = {
+      fd : Unix.file_descr;
+      enc : file t;
+      callbacks : file callbacks;
+    }
 
     (** {3 Functions} *)
- 
+
     (** Create a file encoder writing data to a given Unix file descriptor.
       * 
       * Note: this encoder requires seeking thus will only work on seekable
       * file descriptor. *)
-    val create_from_fd : ?comments:comments -> params -> Unix.file_descr -> handle
+    val create_from_fd :
+      ?comments:comments -> params -> Unix.file_descr -> handle
 
     (** Create a file encoder writing data to the given file URI *)
     val create : ?comments:comments -> params -> string -> handle
-
   end
 end
 
 (** Raised when an internal error occured. Should be
   * reported if seen. *)
 exception Internal
-
