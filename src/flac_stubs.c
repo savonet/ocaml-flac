@@ -362,7 +362,10 @@ static FLAC__StreamDecoderReadStatus dec_read_callback(const FLAC__StreamDecoder
 
   caml_release_runtime_system();
 
-  return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+  if (readlen == 0)
+    return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
+  else
+    return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
 }
 
 static inline double sample_to_double(FLAC__int32 x, unsigned bps)

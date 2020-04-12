@@ -1,6 +1,7 @@
 0.2.0 (unreleased)
 =====
 * Switch to bytes read callback.
+* Fixed read callback return value when reaching end of file.
 
 0.1.5 (27-06-2019)
 =====
