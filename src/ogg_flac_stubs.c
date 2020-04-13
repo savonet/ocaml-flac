@@ -184,7 +184,10 @@ static FLAC__StreamDecoderReadStatus ogg_read_callback(const FLAC__StreamDecoder
   caml_release_runtime_system();
 
   *bytes = len;
-  return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
+  if (len == 0)
+    return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
+  else
+    return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
 }
 
 CAMLprim value ocaml_flac_decoder_ogg_update_os(value v, value os)

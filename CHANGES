@@ -1,3 +1,7 @@
+0.1.6 (12-04-2020)
+======
+* Fix return status for native and ogg read callbacks (savonet/liquidosoap#1146)
+
 0.1.5 (27-06-2019)
 =====
 * More cleanup.
