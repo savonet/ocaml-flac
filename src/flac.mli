@@ -22,6 +22,8 @@
 
 (** {1 Native FLAC decoder/encoder modules for OCaml} *)
 
+type audio_buffer = (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array1.t
+
 (** Decode native FLAC data *)
 module Decoder : sig
   (** {3 Usage} *)
@@ -76,7 +78,7 @@ module Decoder : sig
   type 'a t
 
   (** Type of a write callback. *)
-  type write = float array array -> unit
+  type write = audio_buffer array -> unit
 
   (** Type of  a read callback. *)
   type read = bytes -> int -> int -> int
@@ -318,7 +320,7 @@ module Encoder : sig
   val create : ?comments:comments -> params -> 'a callbacks -> 'a t
 
   (** Encode some data *)
-  val process : 'a t -> 'a callbacks -> float array array -> unit
+  val process : 'a t -> 'a callbacks -> audio_buffer array -> unit
 
   (** Terminate an encoder. Causes the encoder to
     * flush remaining encoded data. The encoder should

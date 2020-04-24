@@ -24,10 +24,13 @@ exception Internal
 
 let () = Callback.register_exception "flac_exn_internal" Internal
 
+type audio_buffer =
+  (float, Bigarray.float32_elt, Bigarray.c_layout) Bigarray.Array1.t
+
 module Decoder = struct
   type 'a dec
   type 'a t = 'a dec
-  type write = float array array -> unit
+  type write = audio_buffer array -> unit
   type read = bytes -> int -> int -> int
 
   type 'a callbacks = {
@@ -211,7 +214,8 @@ module Encoder = struct
     let enc = create comments p c in
     (enc, p)
 
-  external process : 'a priv -> 'a callbacks -> float array array -> int -> unit
+  external process :
+    'a priv -> 'a callbacks -> audio_buffer array -> int -> unit
     = "ocaml_flac_encoder_process"
 
   let process (enc, p) c data =
