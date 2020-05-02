@@ -77,6 +77,12 @@ AC_SUBST(OCAMLOGG_REQUIRES)
 AC_CHECK_OCAML_BINDING([bytes],[],[],[1])
 INC="$INC `$OCAMLFIND query bytes`"
 
+# Bytes.
+AC_CHECK_OCAML_BINDING([threads],[],[],[1])
+INC="$INC `$OCAMLFIND query threads`"
+requires="$requires threads"
+OCAMLFLAGS="$OCAMLFLAGS -thread"
+
 # substitutions to perform
 AC_SUBST(VERSION)
 AC_SUBST(INC)

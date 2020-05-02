@@ -1,7 +1,9 @@
 SOURCES=decode.ml
 RESULT=decode
 INCDIRS=../src @OCAMLOGG_INC@
-LIBS=unix ogg flac
+OCAMLFLAGS=@OCAMLFLAGS@
+OCAMLLDFLAGS=-thread
+LIBS=unix threads ogg flac
 
 all: nc
 

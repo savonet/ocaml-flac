@@ -41,4 +41,5 @@ conflicts: [
 ]
 bug-reports: "https://github.com/savonet/ocaml-flac/issues"
 dev-repo: "git+https://github.com/savonet/ocaml-flac.git"
-synopsis: "Interface for the Free Lossless Audio Codec otherwise known as FLAC"
+synopsis:
+  "Interface for the Free Lossless Audio Codec otherwise known as FLAC"

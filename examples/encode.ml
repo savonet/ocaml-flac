@@ -1,10 +1,10 @@
 
-open Unix
-
 let src = ref ""
 let dst = ref ""
 
 let buflen = ref 1024
+
+let flush_outchan = flush
 
 let input_string chan len =
   let ans = Bytes.create len in
@@ -118,7 +118,7 @@ let _ =
         output_string oc (flush os) ;
         List.iter (Ogg.Stream.put_packet os) l;
         output_string oc (flush os) ;
-        Stdlib.flush oc ;
+        flush_outchan oc ;
         let encode buf =
             Flac.Encoder.process enc Ogg_flac.Encoder.callbacks
                                      buf;

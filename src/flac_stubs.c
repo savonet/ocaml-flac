@@ -28,12 +28,12 @@
 #include <caml/mlvalues.h>
 #include <caml/threads.h>
 
+#include "config.h"
+#include "flac_stubs.h"
+
 #ifndef Bytes_val
 #define Bytes_val String_val
 #endif
-
-#include "config.h"
-#include "flac_stubs.h"
 
 #ifndef INT24_MAX
 #define INT24_MAX 0x007fffffL
@@ -48,6 +48,25 @@ value flac_Val_some(value v) {
   some = caml_alloc(1, 0);
   Store_field(some, 0, v);
   CAMLreturn(some);
+}
+
+/* Threads management. */
+static pthread_key_t ocaml_c_thread_key;
+static pthread_once_t ocaml_c_thread_key_once = PTHREAD_ONCE_INIT;
+
+static void ocaml_flac_on_thread_exit(void *key) { caml_c_thread_unregister(); }
+
+static void ocaml_flac_make_key() {
+  pthread_key_create(&ocaml_c_thread_key, ocaml_flac_on_thread_exit);
+}
+
+void ocaml_flac_register_thread() {
+  static int initialized = 1;
+
+  pthread_once(&ocaml_c_thread_key_once, ocaml_flac_make_key);
+
+  if (caml_c_thread_register() && !pthread_getspecific(ocaml_c_thread_key))
+    pthread_setspecific(ocaml_c_thread_key, (void *)&initialized);
 }
 
 /* Convenience functions */
@@ -240,6 +259,7 @@ dec_seek_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->seek != Val_none) {
@@ -263,6 +283,7 @@ dec_tell_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->tell != Val_none) {
@@ -286,6 +307,7 @@ dec_length_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->length != Val_none) {
@@ -308,6 +330,7 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->eof != Val_none) {
@@ -326,13 +349,13 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   return false;
 }
 
-/* libFLAC is monothread so this is run within the main C thread. */
 static FLAC__StreamDecoderReadStatus
 dec_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
                   size_t *bytes, void *client_data) {
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   int readlen = *bytes;
@@ -376,6 +399,7 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   int channels = frame->header.channels;
   int bps = frame->header.bits_per_sample;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   value data = caml_alloc_tuple(channels);
@@ -637,6 +661,7 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
   ocaml_flac_encoder_callbacks *callbacks =
       (ocaml_flac_encoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   value buf = caml_alloc_string(bytes);
@@ -660,6 +685,7 @@ enc_seek_callback(const FLAC__StreamEncoder *encoder,
   ocaml_flac_encoder_callbacks *callbacks =
       (ocaml_flac_encoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->seek != Val_none) {
@@ -683,6 +709,7 @@ enc_tell_callback(const FLAC__StreamEncoder *decoder,
   ocaml_flac_encoder_callbacks *callbacks =
       (ocaml_flac_encoder_callbacks *)client_data;
 
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   if (callbacks->tell != Val_none) {
