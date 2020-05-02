@@ -328,6 +328,7 @@ FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(const FLAC__StreamEncoder 
     }
 
     if (h->header_count > 1) {
+      ocaml_flac_register_thread();
       caml_acquire_runtime_system();
 
       value p = value_of_packet(&op);

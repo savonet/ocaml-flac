@@ -17,6 +17,8 @@
  *
  */
 
+#include <pthread.h>
+
 #include <FLAC/format.h>
 #include <FLAC/metadata.h>
 #include <FLAC/stream_decoder.h>
@@ -123,3 +125,5 @@ value ocaml_flac_encoder_alloc(value comments, value params, struct custom_opera
 
 void finalize_encoder(value dec);
 
+/* Threads management */
+void ocaml_flac_register_thread();

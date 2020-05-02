@@ -2,6 +2,8 @@
 ======
 * Fix exception raised on end of track when
   decoding ogg streams.
+* Fix memory leak when calling OCaml code from
+  unregistered C threads (#9).
 
 0.1.6 (12-04-2020)
 ======
