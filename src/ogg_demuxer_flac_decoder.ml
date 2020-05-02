@@ -74,7 +74,8 @@ let decoder os =
       | `Search_for_metadata | `Read_metadata | `Search_for_frame_sync
       | `Read_frame ->
           Flac.Decoder.process decoder c
-      | _ -> raise Ogg.End_of_stream
+      (* Ogg demuxer is responsible for detecting end of stream vs. end of track. *)
+      | _ -> raise Ogg.Not_enough_data
   in
   let restart new_os =
     os := new_os;

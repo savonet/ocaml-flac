@@ -1,5 +1,7 @@
 0.1.7 ()
 ======
+* Fix exception raised on end of track when
+  decoding ogg streams.
 
 0.1.6 (12-04-2020)
 ======
