@@ -32,6 +32,10 @@
 #include "flac_stubs.h"
 #include "config.h"
 
+#ifndef Bytes_val
+#define Bytes_val String_val
+#endif
+
 #ifndef INT24_MAX
 #define INT24_MAX 0x007fffffL
 #endif
@@ -100,7 +104,7 @@ CAMLprim value caml_flac_s16le_to_float(value _src, value _chans)
 {
   CAMLparam1(_src) ;
   CAMLlocal1(ans) ;
-  char *src = String_val(_src) ;
+  char *src = (char *)Bytes_val(_src) ;
   int chans = Int_val(_chans);
   int samples = caml_string_length(_src) / (2 * chans);
   int i,c ;
@@ -349,7 +353,7 @@ static FLAC__StreamDecoderReadStatus dec_read_callback(const FLAC__StreamDecoder
   value ret = caml_callback(callbacks->read,Val_int(*bytes));
   caml_register_generational_global_root(&ret);
 
-  char *data = String_val(Field(ret,0));
+  char *data = (char *)Bytes_val(Field(ret,0));
   int len = Int_val(Field(ret,1));
   memcpy(buffer,data,len);
   *bytes = len;
@@ -521,7 +525,7 @@ CAMLprim value ocaml_flac_decoder_info(value d)
   Store_field(i,2,Val_int(info->bits_per_sample));
   Store_field(i,3,caml_copy_int64(info->total_samples));
   tmp = caml_alloc_string(16);
-  memcpy(String_val(tmp),info->md5sum,16);
+  memcpy(Bytes_val(tmp),info->md5sum,16);
   Store_field(i,4,tmp);
 
   // Comments block
@@ -675,7 +679,7 @@ FLAC__StreamEncoderWriteStatus enc_write_callback(const FLAC__StreamEncoder *enc
   value buf = caml_alloc_string(bytes);
   caml_register_generational_global_root(&buf);
 
-  memcpy(String_val(buf),buffer,bytes);
+  memcpy(Bytes_val(buf),buffer,bytes);
 
   value res = caml_callback_exn(callbacks->write,buf);
   caml_remove_generational_global_root(&buf);

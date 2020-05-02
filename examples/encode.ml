@@ -1,10 +1,10 @@
 
-open Unix
-
 let src = ref ""
 let dst = ref ""
 
 let buflen = ref 1024
+
+let flush_outchan = flush
 
 let input_string chan len =
   let ans = Bytes.create len in
@@ -118,7 +118,7 @@ let _ =
         output_string oc (flush os) ;
         List.iter (Ogg.Stream.put_packet os) l;
         output_string oc (flush os) ;
-        Pervasives.flush oc ;
+        flush_outchan oc ;
         let encode buf =
             Flac.Encoder.process enc Ogg_flac.Encoder.callbacks
                                      buf;
@@ -145,7 +145,7 @@ let _ =
       (* This ensures the actual audio data will start on a new page, as per
        * spec. *)
       let buflen = channels*bits/8*(!buflen) in
-      let buf = String.create buflen in
+      let buf = Bytes.create buflen in
         begin try while true do
           really_input ic buf 0 (Bytes.length buf);
           encode (Flac.Encoder.from_s16le (Bytes.to_string buf) channels)
