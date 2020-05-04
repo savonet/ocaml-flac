@@ -35,6 +35,7 @@ depexts: [
   ["libflac-dev"] {os-family = "debian"}
   ["flac"] {os-distribution = "nixos"}
   ["flac"] {os = "macos" & os-distribution = "homebrew"}
+  ["flac"] {os = "freebsd"}
 ]
 conflicts: [
   "liquidsoap" {<= "1.4.0"}
