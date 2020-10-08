@@ -37,9 +37,6 @@ depexts: [
   ["flac"] {os = "macos" & os-distribution = "homebrew"}
   ["flac"] {os = "freebsd"}
 ]
-conflicts: [
-  "liquidsoap" {<= "1.4.0"}
-]
 bug-reports: "https://github.com/savonet/ocaml-flac/issues"
 dev-repo: "git+https://github.com/savonet/ocaml-flac.git"
 synopsis:
