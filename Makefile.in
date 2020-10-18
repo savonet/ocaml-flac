@@ -2,7 +2,7 @@
 
 PROGNAME := ocaml-flac
 DISTFILES := @AUTOCONF_INSTALL_FILES@ CHANGES COPYING Makefile.in README \
-	bootstrap configure configure.ac  config.h.in \
+	bootstrap configure configure.ac  config.h.in flac.opam \
 	src/*.ml src/*.mli src/*.c src/*.h src/Makefile.in src/META.in \
 	src/OCamlMakefile examples/Makefile.*.in \
 	examples/*.ml examples/Makefile examples/OCamlMakefile
