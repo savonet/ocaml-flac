@@ -21,9 +21,9 @@ let progress_bar =
           begin
             Printf.printf "%6.2f%% [" n;
             let e = int_of_float (n /. 100. *. (float_of_int nbeq)) in
-            for i = 1 to e do Printf.printf "=" done;
+            for _ = 1 to e do Printf.printf "=" done;
             if e != nbeq then Printf.printf ">";
-            for i = e + 2 to nbeq do Printf.printf " " done;
+            for _ = e + 2 to nbeq do Printf.printf " " done;
             Printf.printf "] "
          end ;
           incr spin;
@@ -87,18 +87,18 @@ let process () =
    else
      let sync = Ogg.Sync.create (Unix.read fd) in
      let test_flac () = 
-       (** Get First page *)
+       (* Get First page *)
        let page = Ogg.Sync.read sync in
-       (** Check wether this is a b_o_s *)
+       (* Check wether this is a b_o_s *)
        if not (Ogg.Page.bos page) then raise Flac.Decoder.Not_flac ;
-       (** Create a stream with this ID *)
+       (* Create a stream with this ID *)
        let serial = Ogg.Page.serialno page in
        Printf.printf "Testing stream %nx\n" serial ;
        let os = Ogg.Stream.create ~serial () in
        Ogg.Stream.put_page os page ;
        let packet = Ogg.Stream.get_packet os in
-       (** Test header. Do not catch anything, first page should be sufficient *)
-       if not (Ogg_flac.Decoder.check_packet packet) then
+       (* Test header. Do not catch anything, first page should be sufficient *)
+       if not (Flac_ogg.Decoder.check_packet packet) then
          raise Not_found;
        Printf.printf "Got a flac stream !\n" ;
        let fill () =
@@ -106,8 +106,8 @@ let process () =
          if Ogg.Page.serialno page = serial then
            Ogg.Stream.put_page os page
        in
-       let callbacks = Ogg_flac.Decoder.get_callbacks write in
-       let dec = Ogg_flac.Decoder.create packet os in
+       let callbacks = Flac_ogg.Decoder.get_callbacks write in
+       let dec = Flac_ogg.Decoder.create packet os in
        let rec info () =
         try 
          Flac.Decoder.init dec callbacks
@@ -126,7 +126,7 @@ let process () =
        in
        process,info,meta
      in
-     (** Now find a flac stream *)
+     (* Now find a flac stream *)
      let rec init () =
        try
          test_flac ()

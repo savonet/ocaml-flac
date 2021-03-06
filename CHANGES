@@ -1,3 +1,7 @@
+0.3.0 (08-03-2021)
+======
+* Switch to dune
+
 0.2.0 (08-10-2020)
 ======
 * Switch to bytes read callback.

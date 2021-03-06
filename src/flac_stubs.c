@@ -28,7 +28,7 @@
 #include <caml/mlvalues.h>
 #include <caml/threads.h>
 
-#include "config.h"
+#include "flac_config.h"
 #include "flac_stubs.h"
 
 #ifndef Bytes_val
