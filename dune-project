@@ -14,6 +14,7 @@
  (depends
   conf-libflac
   conf-pkg-config
+  (ocaml (>= 4.03.0))
   (dune (>= 2.0))
   dune-configurator)
  (depopts
