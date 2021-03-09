@@ -113,19 +113,19 @@ let _ =
           in
           f ""
         in
-        let enc,p,l = Ogg_flac.Encoder.create ~comments params os in
+        let enc,p,l = Flac_ogg.Encoder.create ~comments params os in
         Ogg.Stream.put_packet os p;
         output_string oc (flush os) ;
         List.iter (Ogg.Stream.put_packet os) l;
         output_string oc (flush os) ;
         flush_outchan oc ;
         let encode buf =
-            Flac.Encoder.process enc Ogg_flac.Encoder.callbacks
+            Flac.Encoder.process enc Flac_ogg.Encoder.callbacks
                                      buf;
             output_string oc (pagesout os);
         in
         let finish () = 
-          Flac.Encoder.finish enc Ogg_flac.Encoder.callbacks;
+          Flac.Encoder.finish enc Flac_ogg.Encoder.callbacks;
           output_string oc (flush os) ;
           close_out oc
         in
