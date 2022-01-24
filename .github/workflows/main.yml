@@ -1,17 +1,24 @@
-name: Build
+name: CI
+
 on: [push]
+
 jobs:
-  build:
-    runs-on: ${{ matrix.operating-system }}
-    strategy:
-      matrix:
-        operating-system: [ubuntu-latest, macos-latest]
-        ocaml-version: ['4.09.0']
+  cancel_previous_run:
+    runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - uses: avsm/setup-ocaml@master
+      - name: Cancel Previous Runs
+        uses: styfle/cancel-workflow-action@0.4.0
+        with:
+          access_token: ${{ github.token }}
+
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+    - name: Build and test module
+      uses: savonet/build-and-test-ocaml-module@main
       with:
-        ocaml-version: ${{ matrix.ocaml-version }}
-    - run: opam pin add -n .
-    - run: opam depext -yt flac ogg
-    - run: opam install -t .
+        extra-packages: ogg

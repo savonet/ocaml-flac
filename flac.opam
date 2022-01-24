@@ -11,14 +11,15 @@ depends: [
   "conf-libflac"
   "conf-pkg-config"
   "ocaml" {>= "4.03.0"}
-  "dune" {>= "2.0"}
+  "dune" {>= "2.8"}
   "dune-configurator"
+  "odoc" {with-doc}
 ]
 depopts: [
   "ogg" {>= "0.7.0"}
 ]
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   [
     "dune"
     "build"
