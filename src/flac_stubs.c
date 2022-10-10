@@ -775,11 +775,11 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   /* Vendor string is ignored by libFLAC.. */
   int i;
   for (i = 0; i < Wosize_val(comments); i++) {
-    FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
+    if (FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
         &entry, String_val(Field(Field(comments, i), 0)),
-        String_val(Field(Field(comments, i), 1)));
-    FLAC__metadata_object_vorbiscomment_append_comment(caml_enc->meta, entry,
-                                                       true);
+        String_val(Field(Field(comments, i), 1))))
+      FLAC__metadata_object_vorbiscomment_append_comment(caml_enc->meta, entry,
+                                                         true);
   }
   FLAC__stream_encoder_set_metadata(enc, &caml_enc->meta, 1);
 
