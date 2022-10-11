@@ -780,7 +780,6 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   caml_enc->meta =
       FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
   if (caml_enc->meta == NULL) {
-    FLAC__stream_encoder_delete(enc);
     caml_raise_out_of_memory();
   }
   FLAC__StreamMetadata_VorbisComment_Entry entry;
