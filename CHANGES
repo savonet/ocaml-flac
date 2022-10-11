@@ -1,3 +1,9 @@
+0.3.1 (2022-10-11)
+=====
+* Add bindings for `vorbiscomment_entry_name_is_legal`
+  and `vorbiscomment_entry_value_is_legal`, raise exception
+  when submitting invalid metadata at encoder creation.
+
 0.3.0 (08-03-2021)
 ======
 * Switch to dune
