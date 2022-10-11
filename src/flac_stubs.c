@@ -727,6 +727,18 @@ enc_tell_callback(const FLAC__StreamEncoder *decoder,
   return FLAC__STREAM_ENCODER_TELL_STATUS_UNSUPPORTED;
 }
 
+value ocaml_flac_encoder_vorbiscomment_entry_name_is_legal(value name) {
+  CAMLparam1(name);
+  CAMLreturn(Val_bool(
+      FLAC__format_vorbiscomment_entry_name_is_legal(String_val(name))));
+}
+
+value ocaml_flac_encoder_vorbiscomment_entry_value_is_legal(value _value) {
+  CAMLparam1(_value);
+  CAMLreturn(Val_bool(FLAC__format_vorbiscomment_entry_value_is_legal(
+      (const FLAC__byte *)String_val(_value), caml_string_length(_value))));
+}
+
 value ocaml_flac_encoder_alloc(value comments, value params,
                                struct custom_operations *encoder_ops) {
   CAMLparam2(comments, params);
@@ -775,11 +787,13 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   /* Vendor string is ignored by libFLAC.. */
   int i;
   for (i = 0; i < Wosize_val(comments); i++) {
-    if (FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
-        &entry, String_val(Field(Field(comments, i), 0)),
-        String_val(Field(Field(comments, i), 1))))
-      FLAC__metadata_object_vorbiscomment_append_comment(caml_enc->meta, entry,
-                                                         true);
+    if (!FLAC__metadata_object_vorbiscomment_entry_from_name_value_pair(
+            &entry, String_val(Field(Field(comments, i), 0)),
+            String_val(Field(Field(comments, i), 1))))
+      caml_raise_constant(*caml_named_value("flac_enc_exn_invalid_metadata"));
+
+    FLAC__metadata_object_vorbiscomment_append_comment(caml_enc->meta, entry,
+                                                       true);
   }
   FLAC__stream_encoder_set_metadata(enc, &caml_enc->meta, 1);
 

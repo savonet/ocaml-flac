@@ -308,11 +308,22 @@ module Encoder : sig
     * encode *)
   exception Invalid_data
 
+  (** Raised when initiating an encoder with
+    * invalid metadata. You can use `vorbiscomment_entry_name_is_legal`
+    * and `vorbiscomment_entry_value_is_legal` to check submitted metadata. *)
+  exception Invalid_metadata
+
   (** {3 Functions} *)
 
   (** Create a set of encoding callbacks *)
   val get_callbacks :
     ?seek:(int64 -> unit) -> ?tell:(unit -> int64) -> write -> generic callbacks
+
+  (** Check if a comment label is valid *)
+  val vorbiscomment_entry_name_is_legal : string -> bool
+
+  (** Check if a comment value is valid *)
+  val vorbiscomment_entry_value_is_legal : string -> bool
 
   (** Create an encoder *)
   val create : ?comments:comments -> params -> 'a callbacks -> 'a t

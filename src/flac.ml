@@ -201,6 +201,16 @@ module Encoder = struct
   type 'a t = 'a priv * params
 
   exception Invalid_data
+  exception Invalid_metadata
+
+  let () =
+    Callback.register_exception "flac_enc_exn_invalid_metadata" Invalid_metadata
+
+  external vorbiscomment_entry_name_is_legal : string -> bool
+    = "ocaml_flac_encoder_vorbiscomment_entry_name_is_legal"
+
+  external vorbiscomment_entry_value_is_legal : string -> bool
+    = "ocaml_flac_encoder_vorbiscomment_entry_value_is_legal"
 
   external create : (string * string) array -> params -> 'a callbacks -> 'a priv
     = "ocaml_flac_encoder_create"
@@ -241,7 +251,7 @@ module Encoder = struct
         let rec f pos =
           if pos < len then (
             let ret = Unix.write fd s pos (len - pos) in
-            f (pos + ret) )
+            f (pos + ret))
         in
         f 0
       in
