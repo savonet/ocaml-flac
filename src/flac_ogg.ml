@@ -62,7 +62,7 @@ module Encoder = struct
     let rec f acc =
       try f (Queue.pop ret :: acc)
       with Queue.Empty -> (
-        match List.rev acc with [] -> raise Flac.Internal | x :: l -> (x, l) )
+        match List.rev acc with [] -> raise Flac.Internal | x :: l -> (x, l))
     in
     let p, l = f [] in
     (Obj.magic (enc, params), p, l)
