@@ -48,7 +48,7 @@ typedef struct ocaml_flac_ogg_private {
   value os;
 } ocaml_flac_ogg_private;
 
-inline void finalize_private_values(ocaml_flac_ogg_private *p) {
+void finalize_private_values(ocaml_flac_ogg_private *p) {
   if (p->data != NULL)
     free(p->data);
   caml_remove_generational_global_root(&p->os);
