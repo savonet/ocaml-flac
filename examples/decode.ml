@@ -30,13 +30,13 @@ let progress_bar =
     if !spin > 4 then spin := 1;
     Printf.printf "%c%!"
       (if tot > 0 && n = 100. then ' '
-      else (
-        match !spin with
-          | 1 -> '|'
-          | 2 -> '/'
-          | 3 -> '-'
-          | 4 -> '\\'
-          | _ -> failwith "this did not happen"))
+       else (
+         match !spin with
+           | 1 -> '|'
+           | 2 -> '/'
+           | 3 -> '-'
+           | 4 -> '\\'
+           | _ -> failwith "this did not happen"))
 
 let infile = ref "input.flac"
 let outfile = ref "output.raw"

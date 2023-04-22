@@ -107,8 +107,15 @@ module Decoder = struct
       (info, _comments comments)
     with Internal -> raise Not_flac
 
-  external state : 'a t -> 'a callbacks -> state = "ocaml_flac_decoder_state"
   external create : 'a callbacks -> 'a dec = "ocaml_flac_decoder_create"
+  external finalize_decoder : 'a dec -> unit = "ocaml_flac_finalize_decoder"
+
+  let create callbacks =
+    let dec = create callbacks in
+    Gc.finalise finalize_decoder dec;
+    dec
+
+  external state : 'a t -> 'a callbacks -> state = "ocaml_flac_decoder_state"
   external init : 'a dec -> 'a callbacks -> unit = "ocaml_flac_decoder_init"
 
   let init dec c =
@@ -215,10 +222,13 @@ module Encoder = struct
   external create : (string * string) array -> params -> 'a callbacks -> 'a priv
     = "ocaml_flac_encoder_create"
 
+  external finalize_encoder : 'a priv -> unit = "ocaml_flac_finalize_encoder"
+
   let create ?(comments = []) p c =
     if p.channels <= 0 then raise Invalid_data;
     let comments = Array.of_list comments in
     let enc = create comments p c in
+    Gc.finalise finalize_encoder enc;
     (enc, p)
 
   external process : 'a priv -> 'a callbacks -> float array array -> int -> unit

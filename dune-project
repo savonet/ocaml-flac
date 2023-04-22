@@ -1,5 +1,5 @@
 (lang dune 2.8)
-(version 0.3.1)
+(version 0.3.2)
 (name flac)
 (source (github savonet/ocaml-flac))
 (license GPL-2.0)

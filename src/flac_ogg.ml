@@ -29,9 +29,17 @@ module Decoder = struct
   external check_packet : Ogg.Stream.packet -> bool
     = "ocaml_flac_decoder_check_ogg"
 
+  external finalize_decoder_private_values : ogg Flac.Decoder.dec -> unit
+    = "ocaml_flac_finalize_ogg_decoder_private_values"
+
   external create :
     Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.dec
     = "ocaml_flac_decoder_ogg_create"
+
+  let create p os =
+    let dec = create p os in
+    Gc.finalise finalize_decoder_private_values dec;
+    dec
 
   external update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.stream -> unit
     = "ocaml_flac_decoder_ogg_update_os"
@@ -46,6 +54,9 @@ module Encoder = struct
 
   type init_c = Ogg.Stream.packet -> unit
 
+  external finalize_encoder_private_values : enc -> unit
+    = "ocaml_flac_finalize_ogg_encoder_private_values"
+
   external create :
     (string * string) array ->
     Flac.Encoder.params ->
@@ -59,6 +70,7 @@ module Encoder = struct
     let ret = Queue.create () in
     let init_c p = Queue.push p ret in
     let enc = create comments params os init_c in
+    Gc.finalise finalize_encoder_private_values enc;
     let rec f acc =
       try f (Queue.pop ret :: acc)
       with Queue.Empty -> (

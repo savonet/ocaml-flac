@@ -185,9 +185,9 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
-void finalize_decoder(value e) {
+CAMLprim value ocaml_flac_finalize_decoder(value e) {
+  CAMLparam1(e);
   ocaml_flac_decoder *dec = Decoder_val(e);
-  FLAC__stream_decoder_delete(dec->decoder);
   caml_remove_generational_global_root(&dec->callbacks.data);
   caml_remove_generational_global_root(&dec->callbacks.read);
   caml_remove_generational_global_root(&dec->callbacks.seek);
@@ -195,6 +195,12 @@ void finalize_decoder(value e) {
   caml_remove_generational_global_root(&dec->callbacks.length);
   caml_remove_generational_global_root(&dec->callbacks.eof);
   caml_remove_generational_global_root(&dec->callbacks.write);
+  CAMLreturn(Val_unit);
+}
+
+void finalize_decoder(value e) {
+  ocaml_flac_decoder *dec = Decoder_val(e);
+  FLAC__stream_decoder_delete(dec->decoder);
   if (dec->callbacks.info != NULL)
     free(dec->callbacks.info);
   if (dec->callbacks.meta != NULL)
@@ -632,11 +638,17 @@ CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
 
 /* Encoder */
 
-void finalize_encoder(value e) {
+CAMLprim value ocaml_flac_finalize_encoder(value e) {
+  CAMLparam1(e);
   ocaml_flac_encoder *enc = Encoder_val(e);
   caml_remove_generational_global_root(&enc->callbacks.write);
   caml_remove_generational_global_root(&enc->callbacks.seek);
   caml_remove_generational_global_root(&enc->callbacks.tell);
+  CAMLreturn(Val_unit);
+}
+
+void finalize_encoder(value e) {
+  ocaml_flac_encoder *enc = Encoder_val(e);
   if (enc->encoder != NULL)
     FLAC__stream_encoder_delete(enc->encoder);
   if (enc->meta != NULL)

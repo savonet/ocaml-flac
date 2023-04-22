@@ -1,3 +1,9 @@
+0.3.2 (unreleased)
+=====
+* Move global roots removal out of custom blocks
+  finalizers to be compliant with OCaml 5 memory
+  model.
+
 0.3.1 (2022-10-11)
 =====
 * Add bindings for `vorbiscomment_entry_name_is_legal`

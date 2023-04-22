@@ -48,22 +48,22 @@ typedef struct ocaml_flac_ogg_private {
   value os;
 } ocaml_flac_ogg_private;
 
-static void finalize_private(ocaml_flac_ogg_private *p) {
+inline void finalize_private_values(ocaml_flac_ogg_private *p) {
   if (p->data != NULL)
     free(p->data);
   caml_remove_generational_global_root(&p->os);
   caml_remove_generational_global_root(&p->init_c);
-  free(p);
 }
 
-static void finalize_ogg_decoder(value e) {
+CAMLprim value ocaml_flac_finalize_ogg_decoder_private_values(value e) {
+  CAMLparam1(e);
   ocaml_flac_decoder *dec = Decoder_val(e);
-  finalize_private(dec->callbacks.private);
-  finalize_decoder(e);
+  finalize_private_values(dec->callbacks.private);
+  CAMLreturn(Val_unit);
 }
 
 static struct custom_operations ogg_decoder_ops = {
-    "ocaml_flac_ogg_decoder", finalize_ogg_decoder,
+    "ocaml_flac_ogg_decoder", finalize_decoder,
     custom_compare_default,   custom_hash_default,
     custom_serialize_default, custom_deserialize_default};
 
@@ -212,14 +212,15 @@ CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os) {
 
 /* Encoder */
 
-static void finalize_ogg_encoder(value e) {
-  ocaml_flac_encoder *dec = Encoder_val(e);
-  finalize_private(dec->callbacks.private);
-  finalize_encoder(e);
+CAMLprim value ocaml_flac_finalize_ogg_encoder_private_values(value e) {
+  CAMLparam1(e);
+  ocaml_flac_encoder *enc = Encoder_val(e);
+  finalize_private_values(enc->callbacks.private);
+  CAMLreturn(Val_unit);
 }
 
 static struct custom_operations ogg_encoder_ops = {
-    "ocaml_flac_ogg_encoder", finalize_ogg_encoder,
+    "ocaml_flac_ogg_encoder", finalize_encoder,
     custom_compare_default,   custom_hash_default,
     custom_serialize_default, custom_deserialize_default};
 
