@@ -50,9 +50,9 @@ module Encoder = struct
   type enc
 
   type t = {
-    encoder: ogg Flac.Encoder.t;
-    callbacks: ogg Flac.Encoder.callbacks;
-    first_pages : Ogg.Page.t list
+    encoder : ogg Flac.Encoder.t;
+    callbacks : ogg Flac.Encoder.callbacks;
+    first_pages : Ogg.Page.t list;
   }
 
   external finalize_encoder_private_values : enc -> unit
@@ -65,18 +65,25 @@ module Encoder = struct
     nativeint ->
     enc = "ocaml_flac_encoder_ogg_create"
 
-  external set_write_cb : enc -> (Ogg.Page.t -> unit) -> unit = "ocaml_flac_encoder_ogg_set_write_cb"
+  external set_write_cb : enc -> (Ogg.Page.t -> unit) -> unit
+    = "ocaml_flac_encoder_ogg_set_write_cb"
 
   let create ?(comments = []) ~serialno params write_cb =
     if params.Flac.Encoder.channels <= 0 then raise Flac.Encoder.Invalid_data;
     let comments = Array.of_list comments in
     let first_pages = Atomic.make [] in
-    let write_first_page p = Atomic.set first_pages (p::(Atomic.get first_pages)) in
+    let write_first_page p =
+      Atomic.set first_pages (p :: Atomic.get first_pages)
+    in
     let enc = create comments params write_first_page serialno in
     Gc.finalise finalize_encoder_private_values enc;
     set_write_cb enc write_cb;
-    { encoder = Obj.magic (enc, params); callbacks = Obj.magic (Flac.Encoder.get_callbacks (fun _ -> raise Flac.Internal));
-      first_pages = List.rev (Atomic.get first_pages) }
+    {
+      encoder = Obj.magic (enc, params);
+      callbacks =
+        Obj.magic (Flac.Encoder.get_callbacks (fun _ -> raise Flac.Internal));
+      first_pages = List.rev (Atomic.get first_pages);
+    }
 end
 
 module Skeleton = struct

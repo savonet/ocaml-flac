@@ -79,9 +79,9 @@ module Encoder : sig
   type ogg
 
   type t = {
-    encoder: ogg Flac.Encoder.t;
-    callbacks: ogg Flac.Encoder.callbacks;
-    first_pages : Ogg.Page.t list
+    encoder : ogg Flac.Encoder.t;
+    callbacks : ogg Flac.Encoder.callbacks;
+    first_pages : Ogg.Page.t list;
   }
 
   (** Create an ogg/flac encoder.

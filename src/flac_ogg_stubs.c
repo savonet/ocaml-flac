@@ -295,8 +295,8 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params,
   caml_enc->callbacks.private = priv;
 
   caml_release_runtime_system();
-  FLAC__stream_encoder_init_ogg_stream(caml_enc->encoder, NULL, ogg_enc_write_callback,
-                                       NULL, NULL, NULL,
+  FLAC__stream_encoder_init_ogg_stream(caml_enc->encoder, NULL,
+                                       ogg_enc_write_callback, NULL, NULL, NULL,
                                        (void *)&caml_enc->callbacks);
   FLAC__stream_encoder_set_ogg_serial_number(caml_enc->encoder, serialno);
   caml_acquire_runtime_system();
@@ -307,9 +307,9 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params,
 value CAMLprim ocaml_flac_encoder_ogg_set_write_cb(value _enc, value write_cb) {
   CAMLparam2(_enc, write_cb);
   ocaml_flac_encoder *enc = Encoder_val(_enc);
-  ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)enc->callbacks.private; 
+  ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)enc->callbacks.private;
   caml_modify_generational_global_root(&h->write_cb, write_cb);
-  CAMLreturn(Val_unit); 
+  CAMLreturn(Val_unit);
 }
 
 /* Ogg skeleton interface */

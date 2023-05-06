@@ -87,15 +87,16 @@ let _ =
     else (
       let oc = open_out !dst in
       let write_page (header, body) =
-        output_string oc header; output_string oc body
+        output_string oc header;
+        output_string oc body
       in
       let serialno = Random.nativeint Nativeint.max_int in
-      let {Flac_ogg.Encoder.encoder; callbacks; first_pages} = Flac_ogg.Encoder.create ~comments ~serialno params write_page in
+      let { Flac_ogg.Encoder.encoder; callbacks; first_pages } =
+        Flac_ogg.Encoder.create ~comments ~serialno params write_page
+      in
       List.iter write_page first_pages;
       let encode = Flac.Encoder.process encoder callbacks in
-      let finish () =
-        Flac.Encoder.finish encoder callbacks
-      in
+      let finish () = Flac.Encoder.finish encoder callbacks in
       (encode, finish))
   in
   let start = Unix.time () in
