@@ -85,42 +85,16 @@ let _ =
       in
       (encode, finish))
     else (
-      let os = Ogg.Stream.create () in
       let oc = open_out !dst in
-      let s_o_f (h, b) = h ^ b in
-      let flush s =
-        let rec f v =
-          try
-            let v = v ^ s_o_f (Ogg.Stream.flush_page s) in
-            f v
-          with Ogg.Not_enough_data -> v
-        in
-        f ""
+      let write_page (header, body) =
+        output_string oc header; output_string oc body
       in
-      let pageout s = s_o_f (Ogg.Stream.get_page s) in
-      let pagesout s =
-        let rec f v =
-          try
-            let n = pageout s in
-            f (v ^ n)
-          with Ogg.Not_enough_data -> v
-        in
-        f ""
-      in
-      let enc, p, l = Flac_ogg.Encoder.create ~comments params os in
-      Ogg.Stream.put_packet os p;
-      output_string oc (flush os);
-      List.iter (Ogg.Stream.put_packet os) l;
-      output_string oc (flush os);
-      flush_outchan oc;
-      let encode buf =
-        Flac.Encoder.process enc Flac_ogg.Encoder.callbacks buf;
-        output_string oc (pagesout os)
-      in
+      let serialno = Random.nativeint Nativeint.max_int in
+      let {Flac_ogg.Encoder.encoder; callbacks; first_pages} = Flac_ogg.Encoder.create ~comments ~serialno params write_page in
+      List.iter write_page first_pages;
+      let encode = Flac.Encoder.process encoder callbacks in
       let finish () =
-        Flac.Encoder.finish enc Flac_ogg.Encoder.callbacks;
-        output_string oc (flush os);
-        close_out oc
+        Flac.Encoder.finish encoder callbacks
       in
       (encode, finish))
   in
