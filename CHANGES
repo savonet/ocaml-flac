@@ -1,4 +1,4 @@
-0.4.0 (unreleased)
+0.4.0 (2023-05-09)
 =====
 * Move global roots removal out of custom blocks
   finalizers to be compliant with OCaml 5 memory
