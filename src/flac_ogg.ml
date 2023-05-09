@@ -49,10 +49,11 @@ module Encoder = struct
   type ogg
   type enc
 
-  let callbacks : ogg Flac.Encoder.callbacks =
-    Obj.magic (Flac.Encoder.get_callbacks (fun _ -> raise Flac.Internal))
-
-  type init_c = Ogg.Stream.packet -> unit
+  type t = {
+    encoder : ogg Flac.Encoder.t;
+    callbacks : ogg Flac.Encoder.callbacks;
+    first_pages : Ogg.Page.t list;
+  }
 
   external finalize_encoder_private_values : enc -> unit
     = "ocaml_flac_finalize_ogg_encoder_private_values"
@@ -60,30 +61,29 @@ module Encoder = struct
   external create :
     (string * string) array ->
     Flac.Encoder.params ->
-    Ogg.Stream.stream ->
-    init_c ->
+    (Ogg.Page.t -> unit) ->
+    nativeint ->
     enc = "ocaml_flac_encoder_ogg_create"
 
-  let create ?(comments = []) params os =
+  external set_write_cb : enc -> (Ogg.Page.t -> unit) -> unit
+    = "ocaml_flac_encoder_ogg_set_write_cb"
+
+  let create ?(comments = []) ~serialno params write_cb =
     if params.Flac.Encoder.channels <= 0 then raise Flac.Encoder.Invalid_data;
     let comments = Array.of_list comments in
-    let ret = Queue.create () in
-    let init_c p = Queue.push p ret in
-    let enc = create comments params os init_c in
-    Gc.finalise finalize_encoder_private_values enc;
-    let rec f acc =
-      try f (Queue.pop ret :: acc)
-      with Queue.Empty -> (
-        match List.rev acc with [] -> raise Flac.Internal | x :: l -> (x, l))
+    let first_pages = Atomic.make [] in
+    let write_first_page p =
+      Atomic.set first_pages (p :: Atomic.get first_pages)
     in
-    let p, l = f [] in
-    (Obj.magic (enc, params), p, l)
-
-  external finish : enc -> unit = "ocaml_flac_encoder_ogg_finish"
-
-  let finish e =
-    let e, _ = Obj.magic e in
-    finish e
+    let enc = create comments params write_first_page serialno in
+    Gc.finalise finalize_encoder_private_values enc;
+    set_write_cb enc write_cb;
+    {
+      encoder = Obj.magic (enc, params);
+      callbacks =
+        Obj.magic (Flac.Encoder.get_callbacks (fun _ -> raise Flac.Internal));
+      first_pages = List.rev (Atomic.get first_pages);
+    }
 end
 
 module Skeleton = struct

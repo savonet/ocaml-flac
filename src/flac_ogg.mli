@@ -78,32 +78,25 @@ module Encoder : sig
   (** Variant type for ogg/flac encoder *)
   type ogg
 
-  (** Create a set of ogg/flac callbacks to 
-    * encoder an ogg/flac stream *)
-  val callbacks : ogg Flac.Encoder.callbacks
+  type t = {
+    encoder : ogg Flac.Encoder.t;
+    callbacks : ogg Flac.Encoder.callbacks;
+    first_pages : Ogg.Page.t list;
+  }
 
   (** Create an ogg/flac encoder.
     * 
     * The returned value contains an encoder value
     * that can be used with the functions from the 
-    * [Flac.Encoder] module, as well as an initial 
-    * ogg packet, that should be placed in its own
-    * page at the beginning of the ogg stream, and
-    * then the remaining initial packets, containing
-    * comments data, that should be placed in some ogg 
-    * pages before and not containing any audio data. 
-    * See ogg stream documentation for more information 
-    * on ogg data muxing. *)
+    * [Flac.Encoder] module, as well as the
+    * corresponding callbacks to use with the various
+    * encoding functions. *)
   val create :
     ?comments:(string * string) list ->
+    serialno:Nativeint.t ->
     Flac.Encoder.params ->
-    Ogg.Stream.stream ->
-    ogg Flac.Encoder.t * Ogg.Stream.packet * Ogg.Stream.packet list
-
-  (** Terminate an ogg/flac encoder. Causes the encoder
-    * to flush remaining encoded data. The encoder should not
-    * be used anymore afterwards. *)
-  val finish : ogg Flac.Encoder.t -> unit
+    (Ogg.Page.t -> unit) ->
+    t
 end
 
 (** Ogg/flac skeleton module *)

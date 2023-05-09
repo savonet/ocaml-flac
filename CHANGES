@@ -1,8 +1,10 @@
-0.3.2 (unreleased)
+0.4.0 (unreleased)
 =====
 * Move global roots removal out of custom blocks
   finalizers to be compliant with OCaml 5 memory
   model.
+* Update Ogg encoder API to use flac native ogg
+  support.
 
 0.3.1 (2022-10-11)
 =====
