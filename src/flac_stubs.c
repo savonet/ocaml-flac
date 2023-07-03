@@ -355,11 +355,14 @@ dec_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
   value data = caml_alloc_string(readlen);
   caml_register_generational_global_root(&data);
 
-  readlen = Int_val(
-      caml_callback3(callbacks->read, data, Val_int(0), Val_int(readlen)));
+  value ret =
+      caml_callback3_exn(callbacks->read, data, Val_int(0), Val_int(readlen));
 
-  memcpy(buffer, String_val(data), readlen);
-  *bytes = readlen;
+  if (Is_exception_result(ret))
+    caml_raise(Extract_exception(ret));
+
+  memcpy(buffer, String_val(data), Int_val(ret));
+  *bytes = Int_val(ret);
 
   caml_remove_generational_global_root(&data);
 
