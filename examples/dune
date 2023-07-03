@@ -9,3 +9,28 @@
  (modules encode)
  (optional)
  (libraries flac.ogg))
+
+(rule
+ (alias citest)
+ (target src.wav)
+ (action
+  (run
+   ffmpeg
+   -hide_banner
+   -loglevel
+   error
+   -f
+   lavfi
+   -i
+   "sine=frequency=220:duration=5"
+   -ac
+   2
+   %{target})))
+
+(rule
+ (alias citest)
+ (deps ./src.wav)
+ (action
+  (progn
+   (run ./encode.exe ./src.wav ./src.flac)
+   (run ./decode.exe -i ./src.flac -o ./dst.wav))))

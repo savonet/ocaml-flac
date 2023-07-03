@@ -21,4 +21,8 @@ jobs:
     - name: Build and test module
       uses: savonet/build-and-test-ocaml-module@main
       with:
-        extra-packages: ogg
+        extra-packages: ogg conf-ffmpeg
+    - name: Run CI tests.
+      run: |
+        eval $(opam env)
+        dune build @citest
