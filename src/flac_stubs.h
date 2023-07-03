@@ -36,7 +36,6 @@ typedef struct ocaml_flac_decoder_callbacks {
   /* This is used for ogg callbacks. */
   void *private;
   /* This is used for callback from caml. */
-  value data;
   value read;
   value seek;
   value tell;
@@ -54,21 +53,30 @@ typedef struct ocaml_flac_decoder {
 
 #define Fill_dec_values(x, c)                                                  \
   {                                                                            \
-    caml_modify_generational_global_root(&(x->callbacks.read), Field(c, 0));   \
-    caml_modify_generational_global_root(&(x->callbacks.seek), Field(c, 1));   \
-    caml_modify_generational_global_root(&(x->callbacks.tell), Field(c, 2));   \
-    caml_modify_generational_global_root(&(x->callbacks.length), Field(c, 3)); \
-    caml_modify_generational_global_root(&(x->callbacks.eof), Field(c, 4));    \
-    caml_modify_generational_global_root(&(x->callbacks.write), Field(c, 5));  \
+    CAMLlocal5(_read_cb, _seek_cb, _tell_cb, _length_cb, _eof_cb);             \
+    CAMLlocal1(_write_cb);                                                     \
+    _read_cb = Field(c, 0);                                                    \
+    _seek_cb = Field(c, 1);                                                    \
+    _tell_cb = Field(c, 2);                                                    \
+    _length_cb = Field(c, 3);                                                  \
+    _eof_cb = Field(c, 4);                                                     \
+    _write_cb = Field(c, 5);                                                   \
+    x->callbacks.read = _read_cb;                                              \
+    x->callbacks.seek = _seek_cb;                                              \
+    x->callbacks.tell = _tell_cb;                                              \
+    x->callbacks.length = _length_cb;                                          \
+    x->callbacks.eof = _eof_cb;                                                \
+    x->callbacks.write = _write_cb;                                            \
   }
+
 #define Free_dec_values(x)                                                     \
   {                                                                            \
-    caml_modify_generational_global_root(&(x->callbacks.read), Val_unit);      \
-    caml_modify_generational_global_root(&(x->callbacks.seek), Val_unit);      \
-    caml_modify_generational_global_root(&(x->callbacks.tell), Val_unit);      \
-    caml_modify_generational_global_root(&(x->callbacks.length), Val_unit);    \
-    caml_modify_generational_global_root(&(x->callbacks.eof), Val_unit);       \
-    caml_modify_generational_global_root(&(x->callbacks.write), Val_unit);     \
+    x->callbacks.read = Val_none;                                              \
+    x->callbacks.seek = Val_none;                                              \
+    x->callbacks.tell = Val_none;                                              \
+    x->callbacks.length = Val_none;                                            \
+    x->callbacks.eof = Val_none;                                               \
+    x->callbacks.write = Val_none;                                             \
   }
 
 value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops);
@@ -111,15 +119,20 @@ typedef struct ocaml_flac_encoder {
 
 #define Fill_enc_values(x, c)                                                  \
   {                                                                            \
-    caml_modify_generational_global_root(&(x->callbacks.write), Field(c, 0));  \
-    caml_modify_generational_global_root(&(x->callbacks.seek), Field(c, 1));   \
-    caml_modify_generational_global_root(&(x->callbacks.tell), Field(c, 2));   \
+    CAMLlocal3(_write_cb, _seek_cb, _tell_cb);                                 \
+    _write_cb = Field(c, 0);                                                   \
+    _seek_cb = Field(c, 1);                                                    \
+    _tell_cb = Field(c, 2);                                                    \
+    x->callbacks.write = _write_cb;                                            \
+    x->callbacks.seek = _seek_cb;                                              \
+    x->callbacks.tell = _tell_cb;                                              \
   }
+
 #define Free_enc_values(x)                                                     \
   {                                                                            \
-    caml_modify_generational_global_root(&(x->callbacks.write), Val_unit);     \
-    caml_modify_generational_global_root(&(x->callbacks.seek), Val_unit);      \
-    caml_modify_generational_global_root(&(x->callbacks.tell), Val_unit);      \
+    x->callbacks.write = Val_none;                                             \
+    x->callbacks.seek = Val_none;                                              \
+    x->callbacks.tell = Val_none;                                              \
   }
 
 /* Caml abstract value containing the decoder. */
