@@ -19,6 +19,7 @@ jobs:
       with:
         extra-packages: ogg
     - name: Run CI tests.
+      if: ${{ matrix.os == 'ubuntu-latest' }}
       run: |
         eval $(opam env)
         sudo apt-get install -qq -yy ffmpeg
