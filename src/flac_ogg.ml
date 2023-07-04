@@ -74,7 +74,7 @@ module Encoder = struct
   external create :
     (string * string) array ->
     Flac.Encoder.params ->
-    (bytes -> unit) * 'a ->
+    'a Flac.Encoder.callbacks ->
     nativeint ->
     enc = "ocaml_flac_encoder_ogg_create"
 
@@ -93,7 +93,8 @@ module Encoder = struct
     let write_first_page =
       write_wrap (fun p -> first_pages := p :: !first_pages)
     in
-    let enc = create comments params (write_first_page, None) serialno in
+    let callbacks = Flac.Encoder.get_callbacks write_first_page in
+    let enc = create comments params callbacks serialno in
     assert (!header = None);
     {
       encoder = Obj.magic (enc, params);

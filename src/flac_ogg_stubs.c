@@ -63,14 +63,13 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params,
                                              value _enc_cb, value _serialno) {
   CAMLparam4(comments, params, _enc_cb, _serialno);
   CAMLlocal2(tmp, ret);
-  Declare_local_enc_values;
 
   intnat serialno = Nativeint_val(_serialno);
 
   ret = ocaml_flac_encoder_alloc(comments, params);
   ocaml_flac_encoder *enc = Encoder_val(ret);
 
-  Fill_enc_values(enc, _enc_cb);
+  enc->callbacks = _enc_cb;
 
   caml_release_runtime_system();
   FLAC__stream_encoder_set_ogg_serial_number(enc->encoder, serialno);
@@ -79,7 +78,7 @@ CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params,
                                        (void *)&enc->callbacks);
   caml_acquire_runtime_system();
 
-  Free_enc_values(enc);
+  enc->callbacks = Val_none;
 
   CAMLreturn(ret);
 }
