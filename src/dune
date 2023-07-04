@@ -2,7 +2,7 @@
  (name flac)
  (public_name flac)
  (synopsis "OCaml bindings for libflac")
- (modules flac)
+ (modules flac flac_impl)
  (libraries unix)
  (foreign_stubs
   (language c)

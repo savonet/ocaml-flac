@@ -1,3 +1,9 @@
+0.5.0 (unreleased)
+=====
+* Cleanup API, get rid of global roots,
+  make ogg encoder and decoder implementation
+  use the main flac module implementation.
+
 0.4.0 (2023-05-09)
 =====
 * Move global roots removal out of custom blocks

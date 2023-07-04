@@ -82,7 +82,7 @@ module Decoder : sig
   type read = bytes -> int -> int -> int
 
   (** Type of a collection of callbacks. *)
-  type 'a callbacks
+  type 'a callbacks = 'a Flac_impl.Decoder.callbacks
 
   (** Generic variant type for callbacks and decoder. *)
   type generic
@@ -285,7 +285,7 @@ module Encoder : sig
   type write = bytes -> unit
 
   (** Type of a set of callbacks *)
-  type 'a callbacks
+  type 'a callbacks = 'a Flac_impl.Encoder.callbacks
 
   (** Generic type for an encoder *)
   type generic

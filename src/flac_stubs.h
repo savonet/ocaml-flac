@@ -33,15 +33,8 @@ value flac_Val_some(value v);
 /* Decoder */
 
 typedef struct ocaml_flac_decoder_callbacks {
-  /* This is used for ogg callbacks. */
-  void *private;
   /* This is used for callback from caml. */
-  value read;
-  value seek;
-  value tell;
-  value length;
-  value eof;
-  value write;
+  value *callbacks;
   FLAC__StreamMetadata_StreamInfo *info;
   FLAC__StreamMetadata *meta;
 } ocaml_flac_decoder_callbacks;
@@ -51,37 +44,12 @@ typedef struct ocaml_flac_decoder {
   ocaml_flac_decoder_callbacks callbacks;
 } ocaml_flac_decoder;
 
-#define Fill_dec_values(x, c)                                                  \
-  {                                                                            \
-    CAMLlocal5(_read_cb, _seek_cb, _tell_cb, _length_cb, _eof_cb);             \
-    CAMLlocal1(_write_cb);                                                     \
-    _read_cb = Field(c, 0);                                                    \
-    _seek_cb = Field(c, 1);                                                    \
-    _tell_cb = Field(c, 2);                                                    \
-    _length_cb = Field(c, 3);                                                  \
-    _eof_cb = Field(c, 4);                                                     \
-    _write_cb = Field(c, 5);                                                   \
-    x->callbacks.read = _read_cb;                                              \
-    x->callbacks.seek = _seek_cb;                                              \
-    x->callbacks.tell = _tell_cb;                                              \
-    x->callbacks.length = _length_cb;                                          \
-    x->callbacks.eof = _eof_cb;                                                \
-    x->callbacks.write = _write_cb;                                            \
-  }
-
-#define Free_dec_values(x)                                                     \
-  {                                                                            \
-    x->callbacks.read = Val_none;                                              \
-    x->callbacks.seek = Val_none;                                              \
-    x->callbacks.tell = Val_none;                                              \
-    x->callbacks.length = Val_none;                                            \
-    x->callbacks.eof = Val_none;                                               \
-    x->callbacks.write = Val_none;                                             \
-  }
-
-value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops);
-
-void finalize_decoder(value dec);
+#define Dec_read(v) Field(*v, 0)
+#define Dec_seek(v) Field(*v, 1)
+#define Dec_tell(v) Field(*v, 2)
+#define Dec_length(v) Field(*v, 3)
+#define Dec_eof(v) Field(*v, 4)
+#define Dec_write(v) Field(*v, 5)
 
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
@@ -100,48 +68,27 @@ void dec_error_callback(const FLAC__StreamDecoder *decoder,
 
 /* Encoder */
 
-typedef struct ocaml_flac_encoder_callbacks {
-  /* This is used by the caml encoder. */
-  value write;
-  value seek;
-  value tell;
-  /* This is used by the ogg encoder. */
-  void *private;
-} ocaml_flac_encoder_callbacks;
-
 typedef struct ocaml_flac_encoder {
   FLAC__StreamEncoder *encoder;
   FLAC__StreamMetadata *meta;
   FLAC__int32 **buf;
   FLAC__int32 *lines;
-  ocaml_flac_encoder_callbacks callbacks;
+  value callbacks;
 } ocaml_flac_encoder;
-
-#define Fill_enc_values(x, c)                                                  \
-  {                                                                            \
-    CAMLlocal3(_write_cb, _seek_cb, _tell_cb);                                 \
-    _write_cb = Field(c, 0);                                                   \
-    _seek_cb = Field(c, 1);                                                    \
-    _tell_cb = Field(c, 2);                                                    \
-    x->callbacks.write = _write_cb;                                            \
-    x->callbacks.seek = _seek_cb;                                              \
-    x->callbacks.tell = _tell_cb;                                              \
-  }
-
-#define Free_enc_values(x)                                                     \
-  {                                                                            \
-    x->callbacks.write = Val_none;                                             \
-    x->callbacks.seek = Val_none;                                              \
-    x->callbacks.tell = Val_none;                                              \
-  }
 
 /* Caml abstract value containing the decoder. */
 #define Encoder_val(v) (*((ocaml_flac_encoder **)Data_custom_val(v)))
 
-value ocaml_flac_encoder_alloc(value comments, value params,
-                               struct custom_operations *encoder_ops);
+#define Enc_write(v) Field(v, 0)
+#define Enc_seek(v) Field(v, 1)
+#define Enc_tell(v) Field(v, 2)
 
-void finalize_encoder(value dec);
+value ocaml_flac_encoder_alloc(value comments, value params);
+
+FLAC__StreamEncoderWriteStatus
+enc_write_callback(const FLAC__StreamEncoder *encoder,
+                   const FLAC__byte buffer[], size_t bytes, unsigned samples,
+                   unsigned current_frame, void *client_data);
 
 /* Threads management */
 void ocaml_flac_register_thread();

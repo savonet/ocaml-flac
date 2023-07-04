@@ -185,7 +185,7 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
-void finalize_decoder(value e) {
+static void finalize_decoder(value e) {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
   if (dec->callbacks.info != NULL)
@@ -255,10 +255,10 @@ dec_seek_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->seek != Val_none) {
+  value seek = Dec_read(callbacks->callbacks);
 
-    caml_callback(Some_val(callbacks->seek),
-                  caml_copy_int64(absolute_byte_offset));
+  if (seek != Val_none) {
+    caml_callback(Some_val(seek), caml_copy_int64(absolute_byte_offset));
 
     caml_release_runtime_system();
 
@@ -279,10 +279,11 @@ dec_tell_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->tell != Val_none) {
+  value tell = Dec_tell(callbacks->callbacks);
 
-    *absolute_byte_offset = (FLAC__uint64)Int64_val(
-        caml_callback(Some_val(callbacks->tell), Val_unit));
+  if (tell != Val_none) {
+    *absolute_byte_offset =
+        (FLAC__uint64)Int64_val(caml_callback(Some_val(tell), Val_unit));
 
     caml_release_runtime_system();
 
@@ -303,10 +304,11 @@ dec_length_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->length != Val_none) {
+  value length = Dec_length(callbacks->callbacks);
 
-    *stream_length = (FLAC__uint64)Int64_val(
-        caml_callback(Some_val(callbacks->length), Val_unit));
+  if (length != Val_none) {
+    *stream_length =
+        (FLAC__uint64)Int64_val(caml_callback(Some_val(length), Val_unit));
 
     caml_release_runtime_system();
 
@@ -326,10 +328,11 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->eof != Val_none) {
+  value eof = Dec_eof(callbacks->callbacks);
 
+  if (eof != Val_none) {
     int ret = false;
-    if (caml_callback(Some_val(callbacks->eof), Val_unit) == Val_true)
+    if (caml_callback(Some_val(eof), Val_unit) == Val_true)
       ret = true;
 
     caml_release_runtime_system();
@@ -342,9 +345,9 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   return false;
 }
 
-static FLAC__StreamDecoderReadStatus
-dec_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
-                  size_t *bytes, void *client_data) {
+FLAC__StreamDecoderReadStatus static dec_read_callback(
+    const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes,
+    void *client_data) {
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
@@ -353,18 +356,19 @@ dec_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
 
   int readlen = *bytes;
   value data = caml_alloc_string(readlen);
+
   caml_register_generational_global_root(&data);
 
-  value ret =
-      caml_callback3_exn(callbacks->read, data, Val_int(0), Val_int(readlen));
+  value ret = caml_callback3_exn(Dec_read(callbacks->callbacks), data,
+                                 Val_int(0), Val_int(readlen));
+
+  caml_remove_generational_global_root(&data);
 
   if (Is_exception_result(ret))
     caml_raise(Extract_exception(ret));
 
   memcpy(buffer, String_val(data), Int_val(ret));
   *bytes = Int_val(ret);
-
-  caml_remove_generational_global_root(&data);
 
   caml_release_runtime_system();
 
@@ -400,6 +404,7 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   caml_acquire_runtime_system();
 
   value data = caml_alloc_tuple(channels);
+
   caml_register_generational_global_root(&data);
 
   int c, i;
@@ -410,8 +415,10 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
                          sample_to_double(buffer[c][i], bps));
   }
 
-  value ret = caml_callback_exn(callbacks->write, data);
+  value ret = caml_callback_exn(Dec_write(callbacks->callbacks), data);
+
   caml_remove_generational_global_root(&data);
+
   if (Is_exception_result(ret))
     caml_raise(Extract_exception(ret));
 
@@ -420,7 +427,7 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
-value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
+value ocaml_flac_decoder_alloc() {
   CAMLparam0();
   CAMLlocal1(ans);
 
@@ -430,13 +437,7 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
     caml_raise_out_of_memory();
 
   dec->decoder = FLAC__stream_decoder_new();
-  dec->callbacks.read = Val_none;
-  dec->callbacks.seek = Val_none;
-  dec->callbacks.tell = Val_none;
-  dec->callbacks.length = Val_none;
-  dec->callbacks.eof = Val_none;
-  dec->callbacks.write = Val_none;
-  dec->callbacks.private = NULL;
+  dec->callbacks.callbacks = NULL;
   dec->callbacks.info = NULL;
   dec->callbacks.meta = NULL;
 
@@ -445,7 +446,7 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
                                             FLAC__METADATA_TYPE_VORBIS_COMMENT);
 
   // Fill custom value
-  ans = caml_alloc_custom(decoder_ops, sizeof(ocaml_flac_decoder *), 1, 0);
+  ans = caml_alloc_custom(&decoder_ops, sizeof(ocaml_flac_decoder *), 1, 0);
   Decoder_val(ans) = dec;
 
   CAMLreturn(ans);
@@ -455,10 +456,10 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks) {
   CAMLparam1(callbacks);
   CAMLlocal1(ans);
 
-  ans = ocaml_flac_decoder_alloc(&decoder_ops);
+  ans = ocaml_flac_decoder_alloc();
   ocaml_flac_decoder *dec = Decoder_val(ans);
 
-  Fill_dec_values(dec, callbacks);
+  dec->callbacks.callbacks = &callbacks;
 
   // Intialize decoder
   caml_release_runtime_system();
@@ -468,32 +469,37 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks) {
       dec_metadata_callback, dec_error_callback, (void *)&dec->callbacks);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   CAMLreturn(ans);
 }
 
 CAMLprim value ocaml_flac_decoder_init(value d, value c) {
   CAMLparam2(d, c);
+
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
 
   // Process metadata
   caml_release_runtime_system();
   FLAC__stream_decoder_process_until_end_of_metadata(dec->decoder);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   CAMLreturn(Val_unit);
 }
 
 CAMLprim value ocaml_flac_decoder_state(value d, value c) {
   CAMLparam2(d, c);
+
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
+
   int ret = FLAC__stream_decoder_get_state(dec->decoder);
-  Free_dec_values(dec);
+
+  dec->callbacks.callbacks = NULL;
+
   CAMLreturn(val_of_state(ret));
 }
 
@@ -546,32 +552,33 @@ CAMLprim value ocaml_flac_decoder_process(value d, value c) {
   CAMLparam2(d, c);
 
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
 
   // Process one frame
   caml_release_runtime_system();
   FLAC__stream_decoder_process_single(dec->decoder);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   CAMLreturn(Val_unit);
 }
 
 CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos) {
   CAMLparam3(d, c, pos);
+
   FLAC__uint64 offset = Int64_val(pos);
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
 
   // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_seek_absolute(dec->decoder, offset);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -581,17 +588,18 @@ CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos) {
 
 CAMLprim value ocaml_flac_decoder_reset(value d, value c) {
   CAMLparam2(d, c);
+
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
 
   // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_reset(dec->decoder);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -601,17 +609,18 @@ CAMLprim value ocaml_flac_decoder_reset(value d, value c) {
 
 CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
   CAMLparam2(d, c);
+
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
-  Fill_dec_values(dec, c);
+  dec->callbacks.callbacks = &c;
 
   // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_flush(dec->decoder);
   caml_acquire_runtime_system();
 
-  Free_dec_values(dec);
+  dec->callbacks.callbacks = NULL;
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -621,7 +630,7 @@ CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
 
 /* Encoder */
 
-void finalize_encoder(value e) {
+static void finalize_encoder(value e) {
   ocaml_flac_encoder *enc = Encoder_val(e);
   if (enc->encoder != NULL)
     FLAC__stream_encoder_delete(enc->encoder);
@@ -644,19 +653,21 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
                    unsigned current_frame, void *client_data)
 
 {
-  ocaml_flac_encoder_callbacks *callbacks =
-      (ocaml_flac_encoder_callbacks *)client_data;
+  value callbacks = *(value *)client_data;
 
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
   value buf = caml_alloc_string(bytes);
+
   caml_register_generational_global_root(&buf);
 
   memcpy(Bytes_val(buf), buffer, bytes);
 
-  value res = caml_callback_exn(callbacks->write, buf);
+  value res = caml_callback_exn(Enc_write(callbacks), buf);
+
   caml_remove_generational_global_root(&buf);
+
   if (Is_exception_result(res))
     caml_raise(Extract_exception(res));
 
@@ -668,16 +679,13 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
 FLAC__StreamEncoderSeekStatus
 enc_seek_callback(const FLAC__StreamEncoder *encoder,
                   FLAC__uint64 absolute_byte_offset, void *client_data) {
-  ocaml_flac_encoder_callbacks *callbacks =
-      (ocaml_flac_encoder_callbacks *)client_data;
-
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->seek != Val_none) {
+  value seek = Enc_seek(*(value *)client_data);
 
-    caml_callback(Some_val(callbacks->seek),
-                  caml_copy_int64(absolute_byte_offset));
+  if (seek != Val_none) {
+    caml_callback(Some_val(seek), caml_copy_int64(absolute_byte_offset));
 
     caml_release_runtime_system();
 
@@ -692,16 +700,14 @@ enc_seek_callback(const FLAC__StreamEncoder *encoder,
 static FLAC__StreamEncoderTellStatus
 enc_tell_callback(const FLAC__StreamEncoder *decoder,
                   FLAC__uint64 *absolute_byte_offset, void *client_data) {
-  ocaml_flac_encoder_callbacks *callbacks =
-      (ocaml_flac_encoder_callbacks *)client_data;
-
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  if (callbacks->tell != Val_none) {
+  value tell = Enc_tell(*(value *)client_data);
 
-    *absolute_byte_offset = (FLAC__uint64)Int64_val(
-        caml_callback(Some_val(callbacks->tell), Val_unit));
+  if (tell != Val_none) {
+    *absolute_byte_offset =
+        (FLAC__uint64)Int64_val(caml_callback(Some_val(tell), Val_unit));
 
     caml_release_runtime_system();
 
@@ -725,8 +731,7 @@ value ocaml_flac_encoder_vorbiscomment_entry_value_is_legal(value _value) {
       (const FLAC__byte *)String_val(_value), caml_string_length(_value))));
 }
 
-value ocaml_flac_encoder_alloc(value comments, value params,
-                               struct custom_operations *encoder_ops) {
+value ocaml_flac_encoder_alloc(value comments, value params) {
   CAMLparam2(comments, params);
   CAMLlocal1(ret);
 
@@ -748,15 +753,12 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   }
 
   caml_enc->encoder = enc;
-  caml_enc->callbacks.private = NULL;
-  caml_enc->callbacks.write = Val_none;
-  caml_enc->callbacks.seek = Val_none;
-  caml_enc->callbacks.tell = Val_none;
+  caml_enc->callbacks = Val_none;
   caml_enc->buf = NULL;
   caml_enc->lines = NULL;
 
   // Fill custom value
-  ret = caml_alloc_custom(encoder_ops, sizeof(ocaml_flac_encoder *), 1, 0);
+  ret = caml_alloc_custom(&encoder_ops, sizeof(ocaml_flac_encoder *), 1, 0);
   Encoder_val(ret) = caml_enc;
 
   /* Metadata */
@@ -791,10 +793,10 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params,
   CAMLparam3(comments, params, callbacks);
   CAMLlocal1(ret);
 
-  ret = ocaml_flac_encoder_alloc(comments, params, &encoder_ops);
+  ret = ocaml_flac_encoder_alloc(comments, params);
   ocaml_flac_encoder *enc = Encoder_val(ret);
 
-  Fill_enc_values(enc, callbacks);
+  enc->callbacks = callbacks;
 
   caml_release_runtime_system();
   FLAC__stream_encoder_init_stream(enc->encoder, enc_write_callback,
@@ -802,7 +804,7 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params,
                                    (void *)&enc->callbacks);
   caml_acquire_runtime_system();
 
-  Free_enc_values(enc);
+  enc->callbacks = Val_none;
 
   CAMLreturn(ret);
 }
@@ -829,6 +831,7 @@ static inline FLAC__int32 sample_from_double(double x, unsigned bps) {
 CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
                                           value bps) {
   CAMLparam3(_enc, data, cb);
+
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   int chans = Wosize_val(data);
@@ -856,29 +859,30 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
           sample_from_double(Double_field(Field(data, c), i), Int_val(bps));
   }
 
-  Fill_enc_values(enc, cb);
+  enc->callbacks = cb;
 
   caml_release_runtime_system();
   FLAC__stream_encoder_process(enc->encoder,
                                (const FLAC__int32 *const *)enc->buf, samples);
   caml_acquire_runtime_system();
 
-  Free_enc_values(enc);
+  enc->callbacks = Val_none;
 
   CAMLreturn(Val_unit);
 }
 
 CAMLprim value ocaml_flac_encoder_finish(value _enc, value c) {
   CAMLparam2(_enc, c);
+
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
-  Fill_enc_values(enc, c);
+  enc->callbacks = c;
 
   caml_release_runtime_system();
   FLAC__stream_encoder_finish(enc->encoder);
   caml_acquire_runtime_system();
 
-  Free_enc_values(enc);
+  enc->callbacks = Val_none;
 
   CAMLreturn(Val_unit);
 }

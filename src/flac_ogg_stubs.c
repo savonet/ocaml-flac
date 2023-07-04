@@ -34,40 +34,6 @@
 
 #include "flac_stubs.h"
 
-typedef struct ocaml_flac_ogg_private {
-  /* This is used by the decoder. */
-  unsigned char *data;
-  long bytes;
-  long offset;
-  value os;
-  /* This is used by the encoder. */
-  ogg_page current_page;
-  value write_cb;
-} ocaml_flac_ogg_private;
-
-void finalize_private_values(ocaml_flac_ogg_private *p) {
-  if (p->data != NULL)
-    free(p->data);
-
-  if (p->current_page.header != NULL)
-    free(p->current_page.header);
-
-  caml_remove_generational_global_root(&p->os);
-  caml_remove_generational_global_root(&p->write_cb);
-}
-
-CAMLprim value ocaml_flac_finalize_ogg_decoder_private_values(value e) {
-  CAMLparam1(e);
-  ocaml_flac_decoder *dec = Decoder_val(e);
-  finalize_private_values(dec->callbacks.private);
-  CAMLreturn(Val_unit);
-}
-
-static struct custom_operations ogg_decoder_ops = {
-    "ocaml_flac_ogg_decoder", finalize_decoder,
-    custom_compare_default,   custom_hash_default,
-    custom_serialize_default, custom_deserialize_default};
-
 /* C.f. http://flac.sourceforge.net/ogg_mapping.html */
 CAMLprim value ocaml_flac_decoder_check_ogg(value v) {
   CAMLparam1(v);
@@ -81,235 +47,40 @@ CAMLprim value ocaml_flac_decoder_check_ogg(value v) {
   CAMLreturn(Val_true);
 }
 
-/* libFLAC is monothread so this
- * is run within the main C thread.
- *
- * Ogg/flac mapping says:
- * "each packet corresponds to one FLAC audio frame."
- * and we decode frame by frame, so we only need to push one packet at a
- * time here. */
-static FLAC__StreamDecoderReadStatus
-ogg_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
-                  size_t *bytes, void *client_data) {
-  ocaml_flac_decoder_callbacks *callbacks =
-      (ocaml_flac_decoder_callbacks *)client_data;
-
-  ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)callbacks->private;
-
-  caml_acquire_runtime_system();
-
-  int is_fresh;
-  long offset;
-  long data_bytes;
-  unsigned char *data;
-
-  if (h->data == NULL) {
-    /* Grap a new ogg_packet */
-    ogg_packet op;
-
-    ogg_stream_state *os = Stream_state_val(h->os);
-    int ret = ogg_stream_packetout(os, &op);
-    if (ret == 0)
-      caml_raise_constant(*caml_named_value("ogg_exn_not_enough_data"));
-    if (ret == -1)
-      caml_raise_constant(*caml_named_value("ogg_exn_out_of_sync"));
-
-    data = op.packet;
-    data_bytes = op.bytes;
-    offset = 0;
-    is_fresh = 1;
-  } else {
-    data = h->data;
-    data_bytes = h->bytes;
-    offset = h->offset;
-    is_fresh = 0;
-  }
-
-  long len;
-  /* len is either *bytes or data_bytes-offset. */
-  if (data_bytes - offset > *bytes)
-    len = *bytes;
-  else
-    len = data_bytes - offset;
-
-  memcpy(buffer, data + offset, len);
-
-  /* Here we wrote all the data we  had, which was less than the required
-   * amount. */
-  if (len == data_bytes - offset) {
-    if (is_fresh == 0) {
-      free(h->data);
-      h->data = NULL;
-      h->bytes = 0;
-      h->offset = 0;
-    }
-    /* Here, we have some data left so we save it for later.. */
-  } else {
-    if (is_fresh == 1) {
-      long rem = data_bytes - offset - len;
-      h->data = malloc(rem);
-      if (h->data == NULL)
-        caml_raise_out_of_memory();
-
-      memcpy(h->data, data + offset + len, rem);
-      h->bytes = rem;
-      h->offset = 0;
-    } else
-      h->offset = offset + len;
-  }
-
-  caml_release_runtime_system();
-
-  *bytes = len;
-  if (len == 0)
-    return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
-  else
-    return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
-}
-
-CAMLprim value ocaml_flac_decoder_ogg_update_os(value v, value os) {
-  CAMLparam2(v, os);
-  ocaml_flac_decoder *dec = Decoder_val(v);
-  ocaml_flac_ogg_private *priv = dec->callbacks.private;
-  caml_modify_generational_global_root(&priv->os, os);
-  CAMLreturn(Val_unit);
-}
-
-CAMLprim value ocaml_flac_decoder_ogg_create(value v, value os) {
-  CAMLparam2(v, os);
+CAMLprim value ocaml_flac_decoder_packet_data(value v) {
+  CAMLparam1(v);
   CAMLlocal1(ans);
   ogg_packet *p = Packet_val(v);
 
-  ans = ocaml_flac_decoder_alloc(&ogg_decoder_ops);
-  ocaml_flac_decoder *dec = Decoder_val(ans);
-
-  ocaml_flac_ogg_private *priv = malloc(sizeof(ocaml_flac_ogg_private));
-  if (priv == NULL)
-    caml_raise_out_of_memory();
-
-  priv->data = malloc(p->bytes);
-  if (priv->data == NULL)
-    caml_raise_out_of_memory();
-  memcpy(priv->data, p->packet, p->bytes);
-  priv->bytes = p->bytes;
-  priv->offset = 9;
-  priv->os = os;
-  caml_register_generational_global_root(&priv->os);
-  priv->write_cb = Val_none;
-  caml_register_generational_global_root(&priv->write_cb);
-
-  dec->callbacks.private = (void *)priv;
-
-  // Intialize decoder
-  caml_release_runtime_system();
-  FLAC__stream_decoder_init_stream(dec->decoder, ogg_read_callback, NULL, NULL,
-                                   NULL, NULL, dec_write_callback,
-                                   dec_metadata_callback, dec_error_callback,
-                                   (void *)&dec->callbacks);
-  caml_acquire_runtime_system();
-
+  ans = caml_alloc_string(p->bytes);
+  memcpy((char *)String_val(ans), p->packet, p->bytes);
   CAMLreturn(ans);
 }
 
 /* Encoder */
 
-CAMLprim value ocaml_flac_finalize_ogg_encoder_private_values(value e) {
-  CAMLparam1(e);
-  ocaml_flac_encoder *enc = Encoder_val(e);
-  finalize_private_values(enc->callbacks.private);
-  CAMLreturn(Val_unit);
-}
-
-static struct custom_operations ogg_encoder_ops = {
-    "ocaml_flac_ogg_encoder", finalize_encoder,
-    custom_compare_default,   custom_hash_default,
-    custom_serialize_default, custom_deserialize_default};
-
-FLAC__StreamEncoderWriteStatus ogg_enc_write_callback(
-    const FLAC__StreamEncoder *encoder, const FLAC__byte buffer[], size_t bytes,
-    unsigned samples, unsigned current_frame, void *client_data)
-
-{
-  ocaml_flac_encoder_callbacks *callbacks =
-      (ocaml_flac_encoder_callbacks *)client_data;
-  ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)callbacks->private;
-
-  if (!h->current_page.header) {
-    h->current_page.header = malloc(bytes);
-    if (!h->current_page.header)
-      caml_raise_out_of_memory();
-
-    memcpy(h->current_page.header, buffer, bytes);
-    h->current_page.header_len = bytes;
-  } else {
-    if (!h->current_page.header)
-      return FLAC__STREAM_ENCODER_WRITE_STATUS_FATAL_ERROR;
-
-    h->current_page.body = (unsigned char *)buffer;
-    h->current_page.body_len = bytes;
-
-    ocaml_flac_register_thread();
-    caml_acquire_runtime_system();
-
-    value page = value_of_page(&h->current_page);
-
-    free(h->current_page.header);
-    h->current_page.header = NULL;
-
-    caml_register_generational_global_root(&page);
-
-    value ret = caml_callback_exn(h->write_cb, page);
-
-    caml_remove_generational_global_root(&page);
-
-    if (Is_exception_result(ret)) {
-      caml_release_runtime_system();
-      return FLAC__STREAM_ENCODER_WRITE_STATUS_FATAL_ERROR;
-    }
-
-    caml_release_runtime_system();
-  }
-
-  return FLAC__STREAM_ENCODER_WRITE_STATUS_OK;
-}
-
 CAMLprim value ocaml_flac_encoder_ogg_create(value comments, value params,
-                                             value write_cb, value _serialno) {
-  CAMLparam4(comments, params, write_cb, _serialno);
+                                             value _enc_cb, value _serialno) {
+  CAMLparam4(comments, params, _enc_cb, _serialno);
   CAMLlocal2(tmp, ret);
+
   intnat serialno = Nativeint_val(_serialno);
 
-  ret = ocaml_flac_encoder_alloc(comments, params, &ogg_encoder_ops);
-  ocaml_flac_encoder *caml_enc = Encoder_val(ret);
+  ret = ocaml_flac_encoder_alloc(comments, params);
+  ocaml_flac_encoder *enc = Encoder_val(ret);
 
-  ocaml_flac_ogg_private *priv = malloc(sizeof(ocaml_flac_ogg_private));
-  if (priv == NULL)
-    caml_raise_out_of_memory();
-  priv->data = NULL;
-  priv->os = Val_none;
-  caml_register_generational_global_root(&priv->os);
-  priv->write_cb = write_cb;
-  caml_register_generational_global_root(&priv->write_cb);
-  memset(&priv->current_page, 0, sizeof(priv->current_page));
-
-  caml_enc->callbacks.private = priv;
+  enc->callbacks = _enc_cb;
 
   caml_release_runtime_system();
-  FLAC__stream_encoder_init_ogg_stream(caml_enc->encoder, NULL,
-                                       ogg_enc_write_callback, NULL, NULL, NULL,
-                                       (void *)&caml_enc->callbacks);
-  FLAC__stream_encoder_set_ogg_serial_number(caml_enc->encoder, serialno);
+  FLAC__stream_encoder_set_ogg_serial_number(enc->encoder, serialno);
+  FLAC__stream_encoder_init_ogg_stream(enc->encoder, NULL, enc_write_callback,
+                                       NULL, NULL, NULL,
+                                       (void *)&enc->callbacks);
   caml_acquire_runtime_system();
 
-  CAMLreturn(ret);
-}
+  enc->callbacks = Val_none;
 
-value CAMLprim ocaml_flac_encoder_ogg_set_write_cb(value _enc, value write_cb) {
-  CAMLparam2(_enc, write_cb);
-  ocaml_flac_encoder *enc = Encoder_val(_enc);
-  ocaml_flac_ogg_private *h = (ocaml_flac_ogg_private *)enc->callbacks.private;
-  caml_modify_generational_global_root(&h->write_cb, write_cb);
-  CAMLreturn(Val_unit);
+  CAMLreturn(ret);
 }
 
 /* Ogg skeleton interface */

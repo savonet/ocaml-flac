@@ -54,14 +54,8 @@ module Decoder : sig
   val check_packet : Ogg.Stream.packet -> bool
 
   (** Create a set of callbacks to decode an ogg/flac stream *)
-  val get_callbacks : Flac.Decoder.write -> ogg Flac.Decoder.callbacks
-
-  (** Create an ogg/flac decoder *)
-  val create : Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.dec
-
-  (** Update the [Ogg.Stream.stream] associated
-    * to the decoder. *)
-  val update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.stream -> unit
+  val get_callbacks :
+    Ogg.Stream.stream -> Flac.Decoder.write -> ogg Flac.Decoder.callbacks
 end
 
 (** Encode ogg/flac data *)

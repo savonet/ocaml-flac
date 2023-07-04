@@ -33,4 +33,6 @@
  (action
   (progn
    (run ./encode.exe ./src.wav ./src.flac)
-   (run ./decode.exe -i ./src.flac -o ./dst.wav))))
+   (run ./decode.exe -i ./src.flac -o ./dst.wav)
+   (run ./encode.exe --ogg true ./src.wav ./dst.ogg)
+   (run ./decode.exe -ogg true -i ./dst.ogg -o ./ogg-dst.wav))))
