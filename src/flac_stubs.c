@@ -362,17 +362,19 @@ FLAC__StreamDecoderReadStatus static dec_read_callback(
   value ret = caml_callback3_exn(Dec_read(callbacks->callbacks), data,
                                  Val_int(0), Val_int(readlen));
 
-  caml_remove_generational_global_root(&data);
-
-  if (Is_exception_result(ret))
+  if (Is_exception_result(ret)) {
+    caml_remove_generational_global_root(&data);
     caml_raise(Extract_exception(ret));
+  }
+
+  caml_remove_generational_global_root(&data);
 
   memcpy(buffer, String_val(data), Int_val(ret));
   *bytes = Int_val(ret);
 
   caml_release_runtime_system();
 
-  if (readlen == 0)
+  if (*bytes == 0)
     return FLAC__STREAM_DECODER_READ_STATUS_END_OF_STREAM;
   else
     return FLAC__STREAM_DECODER_READ_STATUS_CONTINUE;
@@ -417,10 +419,12 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
 
   value ret = caml_callback_exn(Dec_write(callbacks->callbacks), data);
 
-  caml_remove_generational_global_root(&data);
-
-  if (Is_exception_result(ret))
+  if (Is_exception_result(ret)) {
+    caml_remove_generational_global_root(&data);
     caml_raise(Extract_exception(ret));
+  }
+
+  caml_remove_generational_global_root(&data);
 
   caml_release_runtime_system();
 
@@ -666,10 +670,12 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
 
   value res = caml_callback_exn(Enc_write(callbacks), buf);
 
-  caml_remove_generational_global_root(&buf);
-
-  if (Is_exception_result(res))
+  if (Is_exception_result(res)) {
+    caml_remove_generational_global_root(&buf);
     caml_raise(Extract_exception(res));
+  }
+
+  caml_remove_generational_global_root(&buf);
 
   caml_release_runtime_system();
 
