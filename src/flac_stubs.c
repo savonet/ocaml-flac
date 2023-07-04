@@ -453,6 +453,7 @@ value ocaml_flac_decoder_alloc() {
 CAMLprim value ocaml_flac_decoder_create(value callbacks) {
   CAMLparam1(callbacks);
   CAMLlocal1(ans);
+  Declare_local_dec_values;
 
   ans = ocaml_flac_decoder_alloc();
   ocaml_flac_decoder *dec = Decoder_val(ans);
@@ -474,6 +475,8 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks) {
 
 CAMLprim value ocaml_flac_decoder_init(value d, value c) {
   CAMLparam2(d, c);
+  Declare_local_dec_values;
+
   ocaml_flac_decoder *dec = Decoder_val(d);
   Fill_dec_values(dec, c);
 
@@ -489,6 +492,8 @@ CAMLprim value ocaml_flac_decoder_init(value d, value c) {
 
 CAMLprim value ocaml_flac_decoder_state(value d, value c) {
   CAMLparam2(d, c);
+  Declare_local_dec_values;
+
   ocaml_flac_decoder *dec = Decoder_val(d);
   Fill_dec_values(dec, c);
   int ret = FLAC__stream_decoder_get_state(dec->decoder);
@@ -543,6 +548,7 @@ CAMLprim value ocaml_flac_decoder_info(value d) {
 
 CAMLprim value ocaml_flac_decoder_process(value d, value c) {
   CAMLparam2(d, c);
+  Declare_local_dec_values;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
   Fill_dec_values(dec, c);
@@ -559,6 +565,8 @@ CAMLprim value ocaml_flac_decoder_process(value d, value c) {
 
 CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos) {
   CAMLparam3(d, c, pos);
+  Declare_local_dec_values;
+
   FLAC__uint64 offset = Int64_val(pos);
   FLAC_API FLAC__bool ret;
 
@@ -580,6 +588,8 @@ CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos) {
 
 CAMLprim value ocaml_flac_decoder_reset(value d, value c) {
   CAMLparam2(d, c);
+  Declare_local_dec_values;
+
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
@@ -600,6 +610,8 @@ CAMLprim value ocaml_flac_decoder_reset(value d, value c) {
 
 CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
   CAMLparam2(d, c);
+  Declare_local_dec_values;
+
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
@@ -787,6 +799,7 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params,
                                          value callbacks) {
   CAMLparam3(comments, params, callbacks);
   CAMLlocal1(ret);
+  Declare_local_enc_values;
 
   ret = ocaml_flac_encoder_alloc(comments, params);
   ocaml_flac_encoder *enc = Encoder_val(ret);
@@ -826,6 +839,8 @@ static inline FLAC__int32 sample_from_double(double x, unsigned bps) {
 CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
                                           value bps) {
   CAMLparam3(_enc, data, cb);
+  Declare_local_enc_values;
+
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   int chans = Wosize_val(data);
@@ -867,6 +882,8 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
 
 CAMLprim value ocaml_flac_encoder_finish(value _enc, value c) {
   CAMLparam2(_enc, c);
+  Declare_local_enc_values;
+
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   Fill_enc_values(enc, c);

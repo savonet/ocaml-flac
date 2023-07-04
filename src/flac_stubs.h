@@ -49,10 +49,12 @@ typedef struct ocaml_flac_decoder {
   ocaml_flac_decoder_callbacks callbacks;
 } ocaml_flac_decoder;
 
+#define Declare_local_dec_values                                               \
+  CAMLlocal5(_read_cb, _seek_cb, _tell_cb, _length_cb, _eof_cb);               \
+  CAMLlocal1(_write_cb);
+
 #define Fill_dec_values(x, c)                                                  \
   {                                                                            \
-    CAMLlocal5(_read_cb, _seek_cb, _tell_cb, _length_cb, _eof_cb);             \
-    CAMLlocal1(_write_cb);                                                     \
     _read_cb = Field(c, 0);                                                    \
     _seek_cb = Field(c, 1);                                                    \
     _tell_cb = Field(c, 2);                                                    \
@@ -109,9 +111,10 @@ typedef struct ocaml_flac_encoder {
   ocaml_flac_encoder_callbacks callbacks;
 } ocaml_flac_encoder;
 
+#define Declare_local_enc_values CAMLlocal3(_write_cb, _seek_cb, _tell_cb)
+
 #define Fill_enc_values(x, c)                                                  \
   {                                                                            \
-    CAMLlocal3(_write_cb, _seek_cb, _tell_cb);                                 \
     _write_cb = Field(c, 0);                                                   \
     _seek_cb = Field(c, 1);                                                    \
     _tell_cb = Field(c, 2);                                                    \
