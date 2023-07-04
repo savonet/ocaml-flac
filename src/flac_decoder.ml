@@ -22,30 +22,21 @@ let check = Flac_ogg.Decoder.check_packet
 
 let decoder os =
   let ogg_dec = ref None in
-  let packet = ref None in
   let decoder = ref None in
   let os = ref os in
-  let dummy_c = Flac_ogg.Decoder.get_callbacks (fun _ -> ()) in
+  let callbacks = Flac_ogg.Decoder.get_callbacks !os (fun _ -> ()) in
   let init () =
     match !decoder with
       | None ->
-          let packet =
-            match !packet with
-              | None ->
-                  let p = Ogg.Stream.get_packet !os in
-                  packet := Some p;
-                  p
-              | Some p -> p
-          in
           let ogg_dec =
             match !ogg_dec with
               | None ->
-                  let dec = Flac_ogg.Decoder.create packet !os in
+                  let dec = Flac.Decoder.create callbacks in
                   ogg_dec := Some dec;
                   dec
               | Some dec -> dec
           in
-          let dec, info, m = Flac.Decoder.init ogg_dec dummy_c in
+          let dec, info, m = Flac.Decoder.init ogg_dec callbacks in
           let meta =
             match m with None -> ("Unknown vendor", []) | Some x -> x
           in
@@ -63,7 +54,7 @@ let decoder os =
   in
   let decode feed =
     let decoder, _, _ = init () in
-    let c = Flac_ogg.Decoder.get_callbacks (fun ret -> feed ret) in
+    let c = Flac_ogg.Decoder.get_callbacks !os (fun ret -> feed ret) in
     match Flac.Decoder.state decoder c with
       | `Search_for_metadata | `Read_metadata | `Search_for_frame_sync
       | `Read_frame ->
@@ -74,9 +65,8 @@ let decoder os =
   let restart new_os =
     os := new_os;
     let d, _, _ = init () in
-    Flac_ogg.Decoder.update_ogg_stream d new_os;
     (* Flush error are very unlikely. *)
-    let c = Flac_ogg.Decoder.get_callbacks (fun _ -> ()) in
+    let c = Flac_ogg.Decoder.get_callbacks new_os (fun _ -> ()) in
     assert (Flac.Decoder.flush d c)
   in
   Ogg_decoder.Audio

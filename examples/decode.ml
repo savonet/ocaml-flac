@@ -88,7 +88,7 @@ let process () =
         Printf.printf "Testing stream %nx\n" serial;
         let os = Ogg.Stream.create ~serial () in
         Ogg.Stream.put_page os page;
-        let packet = Ogg.Stream.get_packet os in
+        let packet = Ogg.Stream.peek_packet os in
         (* Test header. Do not catch anything, first page should be sufficient *)
         if not (Flac_ogg.Decoder.check_packet packet) then raise Not_found;
         Printf.printf "Got a flac stream !\n";
@@ -96,8 +96,8 @@ let process () =
           let page = Ogg.Sync.read sync in
           if Ogg.Page.serialno page = serial then Ogg.Stream.put_page os page
         in
-        let callbacks = Flac_ogg.Decoder.get_callbacks write in
-        let dec = Flac_ogg.Decoder.create packet os in
+        let callbacks = Flac_ogg.Decoder.get_callbacks os write in
+        let dec = Flac.Decoder.create callbacks in
         let rec info () =
           try Flac.Decoder.init dec callbacks
           with Ogg.Not_enough_data ->
@@ -113,7 +113,7 @@ let process () =
             try
               fill ();
               process ()
-            with Ogg.Not_enough_data -> `End_of_stream)
+            with Ogg.End_of_stream | Ogg.Not_enough_data -> `End_of_stream)
         in
         (process, info, meta)
       in

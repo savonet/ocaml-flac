@@ -33,8 +33,6 @@ value flac_Val_some(value v);
 /* Decoder */
 
 typedef struct ocaml_flac_decoder_callbacks {
-  /* This is used for ogg callbacks. */
-  void *private;
   /* This is used for callback from caml. */
   value read;
   value seek;
@@ -79,10 +77,6 @@ typedef struct ocaml_flac_decoder {
     x->callbacks.write = Val_none;                                             \
   }
 
-value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops);
-
-void finalize_decoder(value dec);
-
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
@@ -105,8 +99,6 @@ typedef struct ocaml_flac_encoder_callbacks {
   value write;
   value seek;
   value tell;
-  /* This is used by the ogg encoder. */
-  void *private;
 } ocaml_flac_encoder_callbacks;
 
 typedef struct ocaml_flac_encoder {
@@ -138,10 +130,12 @@ typedef struct ocaml_flac_encoder {
 /* Caml abstract value containing the decoder. */
 #define Encoder_val(v) (*((ocaml_flac_encoder **)Data_custom_val(v)))
 
-value ocaml_flac_encoder_alloc(value comments, value params,
-                               struct custom_operations *encoder_ops);
+value ocaml_flac_encoder_alloc(value comments, value params);
 
-void finalize_encoder(value dec);
+FLAC__StreamEncoderWriteStatus
+enc_write_callback(const FLAC__StreamEncoder *encoder,
+                   const FLAC__byte buffer[], size_t bytes, unsigned samples,
+                   unsigned current_frame, void *client_data);
 
 /* Threads management */
 void ocaml_flac_register_thread();

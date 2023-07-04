@@ -23,26 +23,42 @@
 module Decoder = struct
   type ogg
 
-  let get_callbacks write : ogg Flac.Decoder.callbacks =
-    Obj.magic (Flac.Decoder.get_callbacks (fun _ -> raise Flac.Internal) write)
+  external get_packet_data : Ogg.Stream.packet -> string
+    = "ocaml_flac_decoder_packet_data"
+
+  let ogg_header_len = 9
+
+  let get_callbacks os write : ogg Flac.Decoder.callbacks =
+    let read_data = Buffer.create 1024 in
+    let is_first_packet = ref true in
+    let read bytes ofs len =
+      try
+        if Buffer.length read_data = 0 then (
+          let p = Ogg.Stream.get_packet os in
+          let data = get_packet_data p in
+          let data =
+            if !is_first_packet then (
+              let len = String.length data in
+              assert (len > ogg_header_len);
+              String.sub data ogg_header_len (len - ogg_header_len))
+            else data
+          in
+          is_first_packet := false;
+          Buffer.add_string read_data data);
+        let c = Buffer.contents read_data in
+        let c_len = String.length c in
+        let len = min len c_len in
+        let rem = String.sub c len (c_len - len) in
+        Buffer.reset read_data;
+        Buffer.add_string read_data rem;
+        Bytes.blit_string c 0 bytes ofs len;
+        len
+      with Ogg.End_of_stream -> 0
+    in
+    Flac__Flac_impl.Decoder.get_callbacks read write
 
   external check_packet : Ogg.Stream.packet -> bool
     = "ocaml_flac_decoder_check_ogg"
-
-  external finalize_decoder_private_values : ogg Flac.Decoder.dec -> unit
-    = "ocaml_flac_finalize_ogg_decoder_private_values"
-
-  external create :
-    Ogg.Stream.packet -> Ogg.Stream.stream -> ogg Flac.Decoder.dec
-    = "ocaml_flac_decoder_ogg_create"
-
-  let create p os =
-    let dec = create p os in
-    Gc.finalise finalize_decoder_private_values dec;
-    dec
-
-  external update_ogg_stream : ogg Flac.Decoder.t -> Ogg.Stream.stream -> unit
-    = "ocaml_flac_decoder_ogg_update_os"
 end
 
 module Encoder = struct
@@ -55,34 +71,34 @@ module Encoder = struct
     first_pages : Ogg.Page.t list;
   }
 
-  external finalize_encoder_private_values : enc -> unit
-    = "ocaml_flac_finalize_ogg_encoder_private_values"
-
   external create :
     (string * string) array ->
     Flac.Encoder.params ->
-    (Ogg.Page.t -> unit) ->
+    (bytes -> unit) * 'a ->
     nativeint ->
     enc = "ocaml_flac_encoder_ogg_create"
 
-  external set_write_cb : enc -> (Ogg.Page.t -> unit) -> unit
-    = "ocaml_flac_encoder_ogg_set_write_cb"
-
-  let create ?(comments = []) ~serialno params write_cb =
+  let create ?(comments = []) ~serialno params write =
     if params.Flac.Encoder.channels <= 0 then raise Flac.Encoder.Invalid_data;
     let comments = Array.of_list comments in
-    let first_pages = Atomic.make [] in
-    let write_first_page p =
-      Atomic.set first_pages (p :: Atomic.get first_pages)
+    let first_pages = ref [] in
+    let header = ref None in
+    let write_wrap write p =
+      match !header with
+        | Some h ->
+            header := None;
+            write (Bytes.unsafe_to_string h, Bytes.unsafe_to_string p)
+        | None -> header := Some p
     in
-    let enc = create comments params write_first_page serialno in
-    Gc.finalise finalize_encoder_private_values enc;
-    set_write_cb enc write_cb;
+    let write_first_page =
+      write_wrap (fun p -> first_pages := p :: !first_pages)
+    in
+    let enc = create comments params (write_first_page, None) serialno in
+    assert (!header = None);
     {
       encoder = Obj.magic (enc, params);
-      callbacks =
-        Obj.magic (Flac.Encoder.get_callbacks (fun _ -> raise Flac.Internal));
-      first_pages = List.rev (Atomic.get first_pages);
+      callbacks = Flac__Flac_impl.Encoder.get_callbacks (write_wrap write);
+      first_pages = List.rev !first_pages;
     }
 end
 

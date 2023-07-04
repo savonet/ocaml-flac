@@ -185,7 +185,7 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
-void finalize_decoder(value e) {
+static void finalize_decoder(value e) {
   ocaml_flac_decoder *dec = Decoder_val(e);
   FLAC__stream_decoder_delete(dec->decoder);
   if (dec->callbacks.info != NULL)
@@ -342,9 +342,9 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   return false;
 }
 
-static FLAC__StreamDecoderReadStatus
-dec_read_callback(const FLAC__StreamDecoder *decoder, FLAC__byte buffer[],
-                  size_t *bytes, void *client_data) {
+FLAC__StreamDecoderReadStatus static dec_read_callback(
+    const FLAC__StreamDecoder *decoder, FLAC__byte buffer[], size_t *bytes,
+    void *client_data) {
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
@@ -420,7 +420,7 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
-value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
+value ocaml_flac_decoder_alloc() {
   CAMLparam0();
   CAMLlocal1(ans);
 
@@ -436,7 +436,6 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
   dec->callbacks.length = Val_none;
   dec->callbacks.eof = Val_none;
   dec->callbacks.write = Val_none;
-  dec->callbacks.private = NULL;
   dec->callbacks.info = NULL;
   dec->callbacks.meta = NULL;
 
@@ -445,7 +444,7 @@ value ocaml_flac_decoder_alloc(struct custom_operations *decoder_ops) {
                                             FLAC__METADATA_TYPE_VORBIS_COMMENT);
 
   // Fill custom value
-  ans = caml_alloc_custom(decoder_ops, sizeof(ocaml_flac_decoder *), 1, 0);
+  ans = caml_alloc_custom(&decoder_ops, sizeof(ocaml_flac_decoder *), 1, 0);
   Decoder_val(ans) = dec;
 
   CAMLreturn(ans);
@@ -455,7 +454,7 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks) {
   CAMLparam1(callbacks);
   CAMLlocal1(ans);
 
-  ans = ocaml_flac_decoder_alloc(&decoder_ops);
+  ans = ocaml_flac_decoder_alloc();
   ocaml_flac_decoder *dec = Decoder_val(ans);
 
   Fill_dec_values(dec, callbacks);
@@ -621,7 +620,7 @@ CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
 
 /* Encoder */
 
-void finalize_encoder(value e) {
+static void finalize_encoder(value e) {
   ocaml_flac_encoder *enc = Encoder_val(e);
   if (enc->encoder != NULL)
     FLAC__stream_encoder_delete(enc->encoder);
@@ -725,8 +724,7 @@ value ocaml_flac_encoder_vorbiscomment_entry_value_is_legal(value _value) {
       (const FLAC__byte *)String_val(_value), caml_string_length(_value))));
 }
 
-value ocaml_flac_encoder_alloc(value comments, value params,
-                               struct custom_operations *encoder_ops) {
+value ocaml_flac_encoder_alloc(value comments, value params) {
   CAMLparam2(comments, params);
   CAMLlocal1(ret);
 
@@ -748,7 +746,6 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   }
 
   caml_enc->encoder = enc;
-  caml_enc->callbacks.private = NULL;
   caml_enc->callbacks.write = Val_none;
   caml_enc->callbacks.seek = Val_none;
   caml_enc->callbacks.tell = Val_none;
@@ -756,7 +753,7 @@ value ocaml_flac_encoder_alloc(value comments, value params,
   caml_enc->lines = NULL;
 
   // Fill custom value
-  ret = caml_alloc_custom(encoder_ops, sizeof(ocaml_flac_encoder *), 1, 0);
+  ret = caml_alloc_custom(&encoder_ops, sizeof(ocaml_flac_encoder *), 1, 0);
   Encoder_val(ret) = caml_enc;
 
   /* Metadata */
@@ -791,7 +788,7 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params,
   CAMLparam3(comments, params, callbacks);
   CAMLlocal1(ret);
 
-  ret = ocaml_flac_encoder_alloc(comments, params, &encoder_ops);
+  ret = ocaml_flac_encoder_alloc(comments, params);
   ocaml_flac_encoder *enc = Encoder_val(ret);
 
   Fill_enc_values(enc, callbacks);
