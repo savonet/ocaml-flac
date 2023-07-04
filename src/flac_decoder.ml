@@ -23,20 +23,24 @@ let check = Flac_ogg.Decoder.check_packet
 let decoder os =
   let ogg_dec = ref None in
   let decoder = ref None in
-  let os = ref os in
-  let callbacks = Flac_ogg.Decoder.get_callbacks !os (fun _ -> ()) in
-  let init () =
+  let write_ref = ref (fun _ -> ()) in
+  let write ret =
+    let fn = !write_ref in
+    fn ret
+  in
+  let callbacks_ref = ref (Flac_ogg.Decoder.get_callbacks os write) in
+  let get_decoder () =
     match !decoder with
       | None ->
           let ogg_dec =
             match !ogg_dec with
               | None ->
-                  let dec = Flac.Decoder.create callbacks in
+                  let dec = Flac.Decoder.create !callbacks_ref in
                   ogg_dec := Some dec;
                   dec
               | Some dec -> dec
           in
-          let dec, info, m = Flac.Decoder.init ogg_dec callbacks in
+          let dec, info, m = Flac.Decoder.init ogg_dec !callbacks_ref in
           let meta =
             match m with None -> ("Unknown vendor", []) | Some x -> x
           in
@@ -45,7 +49,7 @@ let decoder os =
       | Some d -> d
   in
   let info () =
-    let _, info, m = init () in
+    let _, info, m = get_decoder () in
     ( {
         Ogg_decoder.channels = info.Flac.Decoder.channels;
         sample_rate = info.Flac.Decoder.sample_rate;
@@ -53,21 +57,21 @@ let decoder os =
       m )
   in
   let decode feed =
-    let decoder, _, _ = init () in
-    let c = Flac_ogg.Decoder.get_callbacks !os (fun ret -> feed ret) in
-    match Flac.Decoder.state decoder c with
+    write_ref := feed;
+    let decoder, _, _ = get_decoder () in
+    match Flac.Decoder.state decoder !callbacks_ref with
       | `Search_for_metadata | `Read_metadata | `Search_for_frame_sync
       | `Read_frame ->
-          Flac.Decoder.process decoder c
+          Flac.Decoder.process decoder !callbacks_ref
       (* Ogg decoder is responsible for detecting end of stream vs. end of track. *)
       | _ -> raise Ogg.Not_enough_data
   in
   let restart new_os =
-    os := new_os;
-    let d, _, _ = init () in
+    (write_ref := fun _ -> ());
+    let d, _, _ = get_decoder () in
     (* Flush error are very unlikely. *)
-    let c = Flac_ogg.Decoder.get_callbacks new_os (fun _ -> ()) in
-    assert (Flac.Decoder.flush d c)
+    assert (Flac.Decoder.flush d !callbacks_ref);
+    callbacks_ref := Flac_ogg.Decoder.get_callbacks new_os write
   in
   Ogg_decoder.Audio
     {
