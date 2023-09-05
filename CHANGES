@@ -1,4 +1,4 @@
-0.5.0 (unreleased)
+0.5.0 (2023-09-05)
 =====
 * Cleanup API, get rid of global roots,
   make ogg encoder and decoder implementation
