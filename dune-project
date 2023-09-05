@@ -19,5 +19,5 @@
   dune
   dune-configurator)
  (depopts
-  (ogg (>= 0.7.0)))
+  (ogg (>= 0.7.4)))
 )
