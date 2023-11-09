@@ -34,7 +34,7 @@ value flac_Val_some(value v);
 
 typedef struct ocaml_flac_decoder_callbacks {
   /* This is used for callback from caml. */
-  value *callbacks;
+  value callbacks;
   FLAC__StreamMetadata_StreamInfo *info;
   FLAC__StreamMetadata *meta;
 } ocaml_flac_decoder_callbacks;
@@ -44,12 +44,12 @@ typedef struct ocaml_flac_decoder {
   ocaml_flac_decoder_callbacks callbacks;
 } ocaml_flac_decoder;
 
-#define Dec_read(v) Field(*v, 0)
-#define Dec_seek(v) Field(*v, 1)
-#define Dec_tell(v) Field(*v, 2)
-#define Dec_length(v) Field(*v, 3)
-#define Dec_eof(v) Field(*v, 4)
-#define Dec_write(v) Field(*v, 5)
+#define Dec_read(v) Field(v, 0)
+#define Dec_seek(v) Field(v, 1)
+#define Dec_tell(v) Field(v, 2)
+#define Dec_length(v) Field(v, 3)
+#define Dec_eof(v) Field(v, 4)
+#define Dec_write(v) Field(v, 5)
 
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
