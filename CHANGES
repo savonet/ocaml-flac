@@ -1,3 +1,8 @@
+0.5.1 (unreleased)
+=====
+* Use generational global roots to protect
+  encoder and decoder callbacks.
+
 0.5.0 (2023-09-05)
 =====
 * Cleanup API, get rid of global roots,
