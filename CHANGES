@@ -1,4 +1,4 @@
-0.5.1 (unreleased)
+0.5.1 (2024-12-21)
 =====
 * Use generational global roots to protect
   encoder and decoder callbacks.
