@@ -53,20 +53,18 @@ value flac_Val_some(value v) {
 /* Threads management. */
 static pthread_key_t ocaml_c_thread_key;
 static pthread_once_t ocaml_c_thread_key_once = PTHREAD_ONCE_INIT;
+static int ocaml_flac_thread_initialized = 1;
 
 static void ocaml_flac_on_thread_exit(void *key) { caml_c_thread_unregister(); }
 
 static void ocaml_flac_make_key() {
+  caml_c_thread_register();
   pthread_key_create(&ocaml_c_thread_key, ocaml_flac_on_thread_exit);
+  pthread_setspecific(ocaml_c_thread_key, &ocaml_flac_thread_initialized);
 }
 
 void ocaml_flac_register_thread() {
-  static int initialized = 1;
-
   pthread_once(&ocaml_c_thread_key_once, ocaml_flac_make_key);
-
-  if (caml_c_thread_register() && !pthread_getspecific(ocaml_c_thread_key))
-    pthread_setspecific(ocaml_c_thread_key, (void *)&initialized);
 }
 
 /* Convenience functions */
