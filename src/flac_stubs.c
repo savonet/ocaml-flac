@@ -258,7 +258,20 @@ dec_seek_callback(const FLAC__StreamDecoder *decoder,
   value seek = Dec_read(callbacks->callbacks);
 
   if (seek != Val_none) {
-    caml_callback(Some_val(seek), caml_copy_int64(absolute_byte_offset));
+    caml_register_generational_global_root(&seek);
+
+    value ret = caml_callback_exn(Some_val(seek),
+                                  caml_copy_int64(absolute_byte_offset));
+    caml_register_generational_global_root(&ret);
+
+    if (Is_exception_result(ret)) {
+      caml_remove_generational_global_root(&seek);
+      caml_remove_generational_global_root(&ret);
+      caml_raise(Extract_exception(ret));
+    }
+
+    caml_register_generational_global_root(&seek);
+    caml_remove_generational_global_root(&ret);
 
     caml_release_runtime_system();
 
@@ -282,9 +295,21 @@ dec_tell_callback(const FLAC__StreamDecoder *decoder,
   value tell = Dec_tell(callbacks->callbacks);
 
   if (tell != Val_none) {
-    *absolute_byte_offset =
-        (FLAC__uint64)Int64_val(caml_callback(Some_val(tell), Val_unit));
+    caml_register_generational_global_root(&tell);
 
+    value ret = caml_callback_exn(Some_val(tell), Val_unit);
+    caml_register_generational_global_root(&ret);
+
+    if (Is_exception_result(ret)) {
+      caml_remove_generational_global_root(&tell);
+      caml_remove_generational_global_root(&ret);
+      caml_raise(Extract_exception(ret));
+    }
+
+    *absolute_byte_offset = (FLAC__uint64)Int64_val(ret);
+
+    caml_remove_generational_global_root(&tell);
+    caml_remove_generational_global_root(&ret);
     caml_release_runtime_system();
 
     return FLAC__STREAM_DECODER_TELL_STATUS_OK;
@@ -307,9 +332,21 @@ dec_length_callback(const FLAC__StreamDecoder *decoder,
   value length = Dec_length(callbacks->callbacks);
 
   if (length != Val_none) {
-    *stream_length =
-        (FLAC__uint64)Int64_val(caml_callback(Some_val(length), Val_unit));
+    caml_register_generational_global_root(&length);
 
+    value ret = caml_callback_exn(Some_val(length), Val_unit);
+    caml_register_generational_global_root(&ret);
+
+    if (Is_exception_result(ret)) {
+      caml_remove_generational_global_root(&length);
+      caml_remove_generational_global_root(&ret);
+      caml_raise(Extract_exception(ret));
+    }
+
+    *stream_length = (FLAC__uint64)Int64_val(ret);
+
+    caml_remove_generational_global_root(&length);
+    caml_remove_generational_global_root(&ret);
     caml_release_runtime_system();
 
     return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
@@ -331,13 +368,27 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   value eof = Dec_eof(callbacks->callbacks);
 
   if (eof != Val_none) {
-    int ret = false;
-    if (caml_callback(Some_val(eof), Val_unit) == Val_true)
-      ret = true;
+    caml_register_generational_global_root(&eof);
 
+    value ret = caml_callback_exn(Some_val(eof), Val_unit);
+    caml_register_generational_global_root(&ret);
+
+    if (Is_exception_result(ret)) {
+      caml_remove_generational_global_root(&eof);
+      caml_remove_generational_global_root(&ret);
+      caml_raise(Extract_exception(ret));
+    }
+
+    int res = false;
+    if (ret == Val_true)
+      ;
+    res = true;
+
+    caml_remove_generational_global_root(&eof);
+    caml_remove_generational_global_root(&ret);
     caml_release_runtime_system();
 
-    return ret;
+    return res;
   }
 
   caml_release_runtime_system();
@@ -356,24 +407,25 @@ FLAC__StreamDecoderReadStatus static dec_read_callback(
 
   int readlen = *bytes;
 
-  value data = Val_unit;
-  value ret = Val_unit;
+  value data = caml_alloc_string(readlen);
   caml_register_generational_global_root(&data);
+
+  value read_cb = Dec_read(callbacks->callbacks);
+  caml_register_generational_global_root(&read_cb);
+
+  value ret = caml_callback3_exn(Dec_read(callbacks->callbacks), data,
+                                 Val_int(0), Val_int(readlen));
   caml_register_generational_global_root(&ret);
-
-  caml_modify_generational_global_root(&data, caml_alloc_string(readlen));
-
-  caml_modify_generational_global_root(
-      &ret, caml_callback3_exn(Dec_read(callbacks->callbacks), data, Val_int(0),
-                               Val_int(readlen)));
 
   if (Is_exception_result(ret)) {
     caml_remove_generational_global_root(&data);
+    caml_remove_generational_global_root(&read_cb);
     caml_remove_generational_global_root(&ret);
     caml_raise(Extract_exception(ret));
   }
 
   caml_remove_generational_global_root(&data);
+  caml_remove_generational_global_root(&read_cb);
   caml_remove_generational_global_root(&ret);
 
   memcpy(buffer, String_val(data), Int_val(ret));
@@ -412,12 +464,8 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  value data = Val_unit;
-  value ret = Val_unit;
+  value data = caml_alloc_tuple(channels);
   caml_register_generational_global_root(&data);
-  caml_register_generational_global_root(&ret);
-
-  caml_modify_generational_global_root(&data, caml_alloc_tuple(channels));
 
   int c, i;
   for (c = 0; c < channels; c++) {
@@ -427,15 +475,21 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
                          sample_to_double(buffer[c][i], bps));
   }
 
-  ret = caml_callback_exn(Dec_write(callbacks->callbacks), data);
+  value write_cb = Dec_write(callbacks->callbacks);
+  caml_register_generational_global_root(&write_cb);
+
+  value ret = caml_callback_exn(write_cb, data);
+  caml_register_generational_global_root(&ret);
 
   if (Is_exception_result(ret)) {
     caml_remove_generational_global_root(&data);
+    caml_remove_generational_global_root(&write_cb);
     caml_remove_generational_global_root(&ret);
     caml_raise(Extract_exception(ret));
   }
 
   caml_remove_generational_global_root(&data);
+  caml_remove_generational_global_root(&write_cb);
   caml_remove_generational_global_root(&ret);
 
   caml_release_runtime_system();
@@ -684,25 +738,26 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  value buf = Val_unit;
-  value res = Val_unit;
+  value buf = caml_alloc_string(bytes);
   caml_register_generational_global_root(&buf);
-  caml_register_generational_global_root(&res);
-
-  caml_modify_generational_global_root(&buf, caml_alloc_string(bytes));
 
   memcpy(Bytes_val(buf), buffer, bytes);
 
-  caml_modify_generational_global_root(
-      &res, caml_callback_exn(Enc_write(callbacks), buf));
+  value write_cb = Enc_write(callbacks);
+  caml_register_generational_global_root(&write_cb);
+
+  value res = caml_callback_exn(write_cb, buf);
+  caml_register_generational_global_root(&res);
 
   if (Is_exception_result(res)) {
     caml_remove_generational_global_root(&buf);
+    caml_remove_generational_global_root(&write_cb);
     caml_remove_generational_global_root(&res);
     caml_raise(Extract_exception(res));
   }
 
   caml_remove_generational_global_root(&buf);
+  caml_remove_generational_global_root(&write_cb);
   caml_remove_generational_global_root(&res);
 
   caml_release_runtime_system();
