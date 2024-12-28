@@ -22,74 +22,26 @@
 
 (** {1 Ogg/flac encoder/decoder modules for OCaml} *)
 
-(** Decode ogg/flac data *)
 module Decoder : sig
-  (** {3 Usage} *)
-
-  (** Usage is similar to the case
-    * of the native FLAC decoder, using
-    * the appropriate ogg/flac decoding
-    * callbacks. 
-    *
-    * The main difference is that in the 
-    * case of the ogg/flac decoding, the
-    * exception [Ogg.Not_enough_data] may 
-    * be raised if the ogg stream used to
-    * create the decoder does not contain 
-    * enough data. In this case, you should 
-    * feed more data into the ogg stream and 
-    * call the decoding function again.
-    * 
-    * This remark is valid for both the
-    * [Flac.Decoder.init] and [Flac.Decoder.process] 
-    * functions. *)
-
-  (** {3 Types} *)
-
-  (** Variant type for ogg/flac decoder *)
-  type ogg
-
   (** Check if an ogg packet is the first
     * packet of an ogg/flac stream. *)
   val check_packet : Ogg.Stream.packet -> bool
 
-  (** Create a set of callbacks to decode an ogg/flac stream *)
-  val get_callbacks :
-    Ogg.Stream.stream -> Flac.Decoder.write -> ogg Flac.Decoder.callbacks
+  val create :
+    fill:(unit -> unit) ->
+    write:(float array array -> unit) ->
+    Ogg.Stream.stream ->
+    Flac.Decoder.t * Flac.Decoder.info * Flac.Decoder.comments option
 end
 
-(** Encode ogg/flac data *)
 module Encoder : sig
-  (** {3 Usage} *)
+  type t = { encoder : Flac.Encoder.t; first_pages : Ogg.Page.t list }
 
-  (** Usage is similar to the case
-    * of the native FLAC encoder, using
-    * the appropriate ogg/flac encoding
-    * callbacks. *)
-
-  (** {3 Types} *)
-
-  (** Variant type for ogg/flac encoder *)
-  type ogg
-
-  type t = {
-    encoder : ogg Flac.Encoder.t;
-    callbacks : ogg Flac.Encoder.callbacks;
-    first_pages : Ogg.Page.t list;
-  }
-
-  (** Create an ogg/flac encoder.
-    * 
-    * The returned value contains an encoder value
-    * that can be used with the functions from the 
-    * [Flac.Encoder] module, as well as the
-    * corresponding callbacks to use with the various
-    * encoding functions. *)
   val create :
     ?comments:(string * string) list ->
     serialno:Nativeint.t ->
+    write:(Ogg.Page.t -> unit) ->
     Flac.Encoder.params ->
-    (Ogg.Page.t -> unit) ->
     t
 end
 
