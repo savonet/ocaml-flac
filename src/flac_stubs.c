@@ -381,8 +381,7 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
 
     int res = false;
     if (ret == Val_true)
-      ;
-    res = true;
+      res = true;
 
     caml_remove_generational_global_root(&eof);
     caml_remove_generational_global_root(&ret);
