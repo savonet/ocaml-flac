@@ -1,3 +1,5 @@
+let () = Printexc.record_backtrace true
+
 let output_int chan n =
   output_char chan (char_of_int ((n lsr 0) land 0xff));
   output_char chan (char_of_int ((n lsr 8) land 0xff));
@@ -100,11 +102,13 @@ let process () =
           try
             Flac.Decoder.process dec;
             Flac.Decoder.state dec
-          with Ogg.Not_enough_data -> (
-            try
-              fill ();
-              process ()
-            with Ogg.End_of_stream | Ogg.Not_enough_data -> `End_of_stream)
+          with
+            | Ogg.End_of_stream -> `End_of_stream
+            | Ogg.Not_enough_data -> (
+                try
+                  fill ();
+                  process ()
+                with Ogg.End_of_stream | Ogg.Not_enough_data -> `End_of_stream)
         in
         (process, info, meta)
       in

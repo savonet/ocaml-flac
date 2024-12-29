@@ -40,6 +40,7 @@ typedef struct ocaml_flac_decoder_callbacks {
   value length_cb;
   value eof_cb;
   value write_cb;
+  value output;
   value buffer;
   int buflen;
   FLAC__StreamMetadata_StreamInfo *info;

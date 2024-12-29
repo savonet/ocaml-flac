@@ -103,6 +103,7 @@ module Decoder = struct
   external init : t -> unit = "ocaml_flac_decoder_init"
 
   let create ?seek ?tell ?length ?eof ~read ~write () =
+    let write pcm = write (Array.copy pcm) in
     let dec = alloc ~seek ~tell ~length ~eof ~read ~write () in
     Gc.finalise cleanup dec;
     init dec;
@@ -183,7 +184,7 @@ module Encoder = struct
     (string * string) array ->
     seek:(int64 -> unit) option ->
     tell:(unit -> int64) option ->
-    write:(bytes -> unit) ->
+    write:(bytes -> int -> unit) ->
     params ->
     priv = "ocaml_flac_encoder_alloc"
 
@@ -193,6 +194,7 @@ module Encoder = struct
   let create ?(comments = []) ?seek ?tell ~write p =
     if p.channels <= 0 then raise Invalid_data;
     let comments = Array.of_list comments in
+    let write b len = write (Bytes.sub b 0 len) in
     let enc = alloc comments ~seek ~tell ~write p in
     Gc.finalise cleanup enc;
     init enc;

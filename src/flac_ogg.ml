@@ -67,12 +67,16 @@ module Encoder = struct
   type priv
   type t = { encoder : Flac.Encoder.t; first_pages : Ogg.Page.t list }
 
-  external create :
+  external alloc :
     (string * string) array ->
+    seek:(int64 -> unit) option ->
+    tell:(unit -> int64) option ->
+    write:(bytes -> int -> unit) ->
     Flac.Encoder.params ->
-    nativeint ->
-    (bytes -> unit) ->
-    priv = "ocaml_flac_encoder_ogg_create"
+    priv = "ocaml_flac_encoder_alloc"
+
+  external cleanup : priv -> unit = "ocaml_flac_cleanup_encoder"
+  external init : priv -> nativeint -> unit = "ocaml_flac_encoder_ogg_init"
 
   let create ?(comments = []) ~serialno ~write params =
     if params.Flac.Encoder.channels <= 0 then raise Flac.Encoder.Invalid_data;
@@ -84,7 +88,7 @@ module Encoder = struct
       match !header with
         | Some h ->
             header := None;
-            write (Bytes.unsafe_to_string h, Bytes.unsafe_to_string p)
+            write (h, p)
         | None -> header := Some p
     in
     let write_first_page p = first_pages := p :: !first_pages in
@@ -92,7 +96,10 @@ module Encoder = struct
       write_wrap (fun p ->
           if !first_pages_parsed then write p else write_first_page p)
     in
-    let enc = create comments params serialno write in
+    let write b len = write (Bytes.sub_string b 0 len) in
+    let enc = alloc comments ~seek:None ~tell:None ~write params in
+    Gc.finalise cleanup enc;
+    init enc serialno;
     first_pages_parsed := true;
     assert (!header = None);
     { encoder = Obj.magic (enc, params); first_pages = List.rev !first_pages }
