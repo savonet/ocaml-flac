@@ -1,3 +1,5 @@
+let () = Printexc.record_backtrace true
+
 let output_int chan n =
   output_char chan (char_of_int ((n lsr 0) land 0xff));
   output_char chan (char_of_int ((n lsr 8) land 0xff));
@@ -69,11 +71,10 @@ let process () =
   in
   let process, info, comments =
     if not !ogg then (
-      let h = Flac.Decoder.File.create_from_fd write fd in
+      let h = Flac.Decoder.File.create_from_fd ~write fd in
       let process () =
-        Flac.Decoder.process h.Flac.Decoder.File.dec
-          h.Flac.Decoder.File.callbacks;
-        Flac.Decoder.state h.Flac.Decoder.File.dec h.Flac.Decoder.File.callbacks
+        Flac.Decoder.process h.Flac.Decoder.File.dec;
+        Flac.Decoder.state h.Flac.Decoder.File.dec
       in
       (process, h.Flac.Decoder.File.info, h.Flac.Decoder.File.comments))
     else (
@@ -96,24 +97,18 @@ let process () =
           let page = Ogg.Sync.read sync in
           if Ogg.Page.serialno page = serial then Ogg.Stream.put_page os page
         in
-        let callbacks = Flac_ogg.Decoder.get_callbacks os write in
-        let dec = Flac.Decoder.create callbacks in
-        let rec info () =
-          try Flac.Decoder.init dec callbacks
-          with Ogg.Not_enough_data ->
-            fill ();
-            info ()
-        in
-        let dec, info, meta = info () in
+        let dec, info, meta = Flac_ogg.Decoder.create ~fill ~write os in
         let rec process () =
           try
-            Flac.Decoder.process dec callbacks;
-            Flac.Decoder.state dec callbacks
-          with Ogg.Not_enough_data -> (
-            try
-              fill ();
-              process ()
-            with Ogg.End_of_stream | Ogg.Not_enough_data -> `End_of_stream)
+            Flac.Decoder.process dec;
+            Flac.Decoder.state dec
+          with
+            | Ogg.End_of_stream -> `End_of_stream
+            | Ogg.Not_enough_data -> (
+                try
+                  fill ();
+                  process ()
+                with Ogg.End_of_stream | Ogg.Not_enough_data -> `End_of_stream)
         in
         (process, info, meta)
       in

@@ -53,18 +53,20 @@ value flac_Val_some(value v) {
 /* Threads management. */
 static pthread_key_t ocaml_c_thread_key;
 static pthread_once_t ocaml_c_thread_key_once = PTHREAD_ONCE_INIT;
-static int ocaml_flac_thread_initialized = 1;
 
 static void ocaml_flac_on_thread_exit(void *key) { caml_c_thread_unregister(); }
 
 static void ocaml_flac_make_key() {
-  caml_c_thread_register();
   pthread_key_create(&ocaml_c_thread_key, ocaml_flac_on_thread_exit);
-  pthread_setspecific(ocaml_c_thread_key, &ocaml_flac_thread_initialized);
 }
 
 void ocaml_flac_register_thread() {
+  static int initialized = 1;
+
   pthread_once(&ocaml_c_thread_key_once, ocaml_flac_make_key);
+
+  if (caml_c_thread_register() && !pthread_getspecific(ocaml_c_thread_key))
+    pthread_setspecific(ocaml_c_thread_key, (void *)&initialized);
 }
 
 /* Convenience functions */
@@ -183,15 +185,30 @@ static value raise_exn_of_error(FLAC__StreamDecoderErrorStatus e) {
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
 
+CAMLprim value ocaml_flac_cleanup_decoder(value e) {
+  ocaml_flac_decoder *dec = Decoder_val(e);
+
+  caml_remove_generational_global_root(&dec->callbacks.read_cb);
+  caml_remove_generational_global_root(&dec->callbacks.seek_cb);
+  caml_remove_generational_global_root(&dec->callbacks.tell_cb);
+  caml_remove_generational_global_root(&dec->callbacks.eof_cb);
+  caml_remove_generational_global_root(&dec->callbacks.length_cb);
+  caml_remove_generational_global_root(&dec->callbacks.write_cb);
+  caml_remove_generational_global_root(&dec->callbacks.buffer);
+  caml_remove_generational_global_root(&dec->callbacks.output);
+
+  return Val_unit;
+}
+
 static void finalize_decoder(value e) {
   ocaml_flac_decoder *dec = Decoder_val(e);
+
   FLAC__stream_decoder_delete(dec->decoder);
   if (dec->callbacks.info != NULL)
     free(dec->callbacks.info);
   if (dec->callbacks.meta != NULL)
     FLAC__metadata_object_delete(dec->callbacks.meta);
 
-  caml_remove_generational_global_root(&dec->callbacks.callbacks);
   free(dec);
 }
 
@@ -240,7 +257,7 @@ void dec_metadata_callback(const FLAC__StreamDecoder *decoder,
 void dec_error_callback(const FLAC__StreamDecoder *decoder,
                         FLAC__StreamDecoderErrorStatus status,
                         void *client_data) {
-  /* This callback is executed in non-blocking section. */
+  ocaml_flac_register_thread();
   caml_acquire_runtime_system();
   raise_exn_of_error(status);
   return;
@@ -252,35 +269,15 @@ dec_seek_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  if (callbacks->seek_cb == Val_none)
+    return FLAC__STREAM_DECODER_SEEK_STATUS_UNSUPPORTED;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value seek = Dec_read(callbacks->callbacks);
-
-  if (seek != Val_none) {
-    caml_register_generational_global_root(&seek);
-
-    value ret = caml_callback_exn(Some_val(seek),
-                                  caml_copy_int64(absolute_byte_offset));
-    caml_register_generational_global_root(&ret);
-
-    if (Is_exception_result(ret)) {
-      caml_remove_generational_global_root(&seek);
-      caml_remove_generational_global_root(&ret);
-      caml_raise(Extract_exception(ret));
-    }
-
-    caml_register_generational_global_root(&seek);
-    caml_remove_generational_global_root(&ret);
-
-    caml_release_runtime_system();
-
-    return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
-  }
-
+  caml_callback(callbacks->seek_cb, caml_copy_int64(absolute_byte_offset));
   caml_release_runtime_system();
 
-  return FLAC__STREAM_DECODER_SEEK_STATUS_UNSUPPORTED;
+  return FLAC__STREAM_DECODER_SEEK_STATUS_OK;
 }
 
 static FLAC__StreamDecoderTellStatus
@@ -289,35 +286,16 @@ dec_tell_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  if (callbacks->tell_cb == Val_none)
+    return FLAC__STREAM_DECODER_TELL_STATUS_UNSUPPORTED;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value tell = Dec_tell(callbacks->callbacks);
-
-  if (tell != Val_none) {
-    caml_register_generational_global_root(&tell);
-
-    value ret = caml_callback_exn(Some_val(tell), Val_unit);
-    caml_register_generational_global_root(&ret);
-
-    if (Is_exception_result(ret)) {
-      caml_remove_generational_global_root(&tell);
-      caml_remove_generational_global_root(&ret);
-      caml_raise(Extract_exception(ret));
-    }
-
-    *absolute_byte_offset = (FLAC__uint64)Int64_val(ret);
-
-    caml_remove_generational_global_root(&tell);
-    caml_remove_generational_global_root(&ret);
-    caml_release_runtime_system();
-
-    return FLAC__STREAM_DECODER_TELL_STATUS_OK;
-  }
-
+  value ret = caml_callback(callbacks->tell_cb, Val_unit);
+  *absolute_byte_offset = (FLAC__uint64)Int64_val(ret);
   caml_release_runtime_system();
 
-  return FLAC__STREAM_DECODER_TELL_STATUS_UNSUPPORTED;
+  return FLAC__STREAM_DECODER_TELL_STATUS_OK;
 }
 
 static FLAC__StreamDecoderLengthStatus
@@ -326,35 +304,16 @@ dec_length_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  if (callbacks->length_cb == Val_none)
+    return FLAC__STREAM_DECODER_LENGTH_STATUS_UNSUPPORTED;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value length = Dec_length(callbacks->callbacks);
-
-  if (length != Val_none) {
-    caml_register_generational_global_root(&length);
-
-    value ret = caml_callback_exn(Some_val(length), Val_unit);
-    caml_register_generational_global_root(&ret);
-
-    if (Is_exception_result(ret)) {
-      caml_remove_generational_global_root(&length);
-      caml_remove_generational_global_root(&ret);
-      caml_raise(Extract_exception(ret));
-    }
-
-    *stream_length = (FLAC__uint64)Int64_val(ret);
-
-    caml_remove_generational_global_root(&length);
-    caml_remove_generational_global_root(&ret);
-    caml_release_runtime_system();
-
-    return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
-  }
-
+  value ret = caml_callback(callbacks->length_cb, Val_unit);
+  *stream_length = (FLAC__uint64)Int64_val(ret);
   caml_release_runtime_system();
 
-  return FLAC__STREAM_DECODER_LENGTH_STATUS_UNSUPPORTED;
+  return FLAC__STREAM_DECODER_LENGTH_STATUS_OK;
 }
 
 static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
@@ -362,35 +321,16 @@ static FLAC__bool dec_eof_callback(const FLAC__StreamDecoder *decoder,
   ocaml_flac_decoder_callbacks *callbacks =
       (ocaml_flac_decoder_callbacks *)client_data;
 
+  if (callbacks->eof_cb == Val_none)
+    return false;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value eof = Dec_eof(callbacks->callbacks);
-
-  if (eof != Val_none) {
-    caml_register_generational_global_root(&eof);
-
-    value ret = caml_callback_exn(Some_val(eof), Val_unit);
-    caml_register_generational_global_root(&ret);
-
-    if (Is_exception_result(ret)) {
-      caml_remove_generational_global_root(&eof);
-      caml_remove_generational_global_root(&ret);
-      caml_raise(Extract_exception(ret));
-    }
-
-    int res = false;
-    if (ret == Val_true)
-      res = true;
-
-    caml_remove_generational_global_root(&eof);
-    caml_remove_generational_global_root(&ret);
-    caml_release_runtime_system();
-
-    return res;
-  }
-
+  value ret = caml_callback(callbacks->eof_cb, Val_unit);
   caml_release_runtime_system();
+
+  if (ret == Val_true)
+    return true;
 
   return false;
 }
@@ -405,29 +345,13 @@ FLAC__StreamDecoderReadStatus static dec_read_callback(
   caml_acquire_runtime_system();
 
   int readlen = *bytes;
+  if (callbacks->buflen < readlen)
+    readlen = callbacks->buflen;
 
-  value data = caml_alloc_string(readlen);
-  caml_register_generational_global_root(&data);
+  value ret = caml_callback3(callbacks->read_cb, callbacks->buffer, Val_int(0),
+                             Val_int(readlen));
 
-  value read_cb = Dec_read(callbacks->callbacks);
-  caml_register_generational_global_root(&read_cb);
-
-  value ret = caml_callback3_exn(Dec_read(callbacks->callbacks), data,
-                                 Val_int(0), Val_int(readlen));
-  caml_register_generational_global_root(&ret);
-
-  if (Is_exception_result(ret)) {
-    caml_remove_generational_global_root(&data);
-    caml_remove_generational_global_root(&read_cb);
-    caml_remove_generational_global_root(&ret);
-    caml_raise(Extract_exception(ret));
-  }
-
-  caml_remove_generational_global_root(&data);
-  caml_remove_generational_global_root(&read_cb);
-  caml_remove_generational_global_root(&ret);
-
-  memcpy(buffer, String_val(data), Int_val(ret));
+  memcpy(buffer, String_val(callbacks->buffer), Int_val(ret));
   *bytes = Int_val(ret);
 
   caml_release_runtime_system();
@@ -463,41 +387,30 @@ dec_write_callback(const FLAC__StreamDecoder *decoder, const FLAC__Frame *frame,
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  value data = caml_alloc_tuple(channels);
-  caml_register_generational_global_root(&data);
-
   int c, i;
   for (c = 0; c < channels; c++) {
-    Store_field(data, c, caml_alloc(samples * Double_wosize, Double_array_tag));
+    Store_field(callbacks->output, c,
+                caml_alloc(samples * Double_wosize, Double_array_tag));
     for (i = 0; i < samples; i++)
-      Store_double_field(Field(data, c), i,
+      Store_double_field(Field(callbacks->output, c), i,
                          sample_to_double(buffer[c][i], bps));
   }
 
-  value write_cb = Dec_write(callbacks->callbacks);
-  caml_register_generational_global_root(&write_cb);
-
-  value ret = caml_callback_exn(write_cb, data);
-  caml_register_generational_global_root(&ret);
-
-  if (Is_exception_result(ret)) {
-    caml_remove_generational_global_root(&data);
-    caml_remove_generational_global_root(&write_cb);
-    caml_remove_generational_global_root(&ret);
-    caml_raise(Extract_exception(ret));
-  }
-
-  caml_remove_generational_global_root(&data);
-  caml_remove_generational_global_root(&write_cb);
-  caml_remove_generational_global_root(&ret);
+  caml_callback(callbacks->write_cb, callbacks->output);
 
   caml_release_runtime_system();
 
   return FLAC__STREAM_DECODER_WRITE_STATUS_CONTINUE;
 }
 
-value ocaml_flac_decoder_alloc() {
-  CAMLparam0();
+#define Some_or_none(v) (v == Val_none ? Val_none : Some_val(v))
+
+CAMLprim value ocaml_flac_decoder_alloc_native(value seek, value tell,
+                                               value length, value eof,
+                                               value read, value write,
+                                               value u) {
+  CAMLparam5(seek, tell, length, eof, read);
+  CAMLxparam1(write);
   CAMLlocal1(ans);
 
   // Initialize things
@@ -506,11 +419,34 @@ value ocaml_flac_decoder_alloc() {
     caml_raise_out_of_memory();
 
   dec->decoder = FLAC__stream_decoder_new();
-  dec->callbacks.callbacks = Val_none;
+
+  dec->callbacks.seek_cb = Some_or_none(seek);
+  caml_register_generational_global_root(&dec->callbacks.seek_cb);
+
+  dec->callbacks.tell_cb = Some_or_none(tell);
+  caml_register_generational_global_root(&dec->callbacks.tell_cb);
+
+  dec->callbacks.length_cb = Some_or_none(length);
+  caml_register_generational_global_root(&dec->callbacks.length_cb);
+
+  dec->callbacks.eof_cb = Some_or_none(eof);
+  caml_register_generational_global_root(&dec->callbacks.eof_cb);
+
+  dec->callbacks.write_cb = write;
+  caml_register_generational_global_root(&dec->callbacks.write_cb);
+
+  dec->callbacks.read_cb = read;
+  caml_register_generational_global_root(&dec->callbacks.read_cb);
+
+  dec->callbacks.buflen = 1024;
+  dec->callbacks.buffer = caml_alloc_string(dec->callbacks.buflen);
+  caml_register_generational_global_root(&dec->callbacks.buffer);
+
+  dec->callbacks.output = Val_none;
+  caml_register_generational_global_root(&dec->callbacks.output);
+
   dec->callbacks.info = NULL;
   dec->callbacks.meta = NULL;
-
-  caml_register_generational_global_root(&dec->callbacks.callbacks);
 
   // Accept vorbis comments
   FLAC__stream_decoder_set_metadata_respond(dec->decoder,
@@ -523,14 +459,15 @@ value ocaml_flac_decoder_alloc() {
   CAMLreturn(ans);
 }
 
-CAMLprim value ocaml_flac_decoder_create(value callbacks) {
-  CAMLparam1(callbacks);
-  CAMLlocal1(ans);
+CAMLprim value ocaml_flac_decoder_alloc_bytecode(value *argv, int argn) {
+  return ocaml_flac_decoder_alloc_native(argv[0], argv[1], argv[2], argv[3],
+                                         argv[4], argv[5], argv[6]);
+}
 
-  ans = ocaml_flac_decoder_alloc();
-  ocaml_flac_decoder *dec = Decoder_val(ans);
+CAMLprim value ocaml_flac_decoder_init(value _dec) {
+  CAMLparam1(_dec);
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, callbacks);
+  ocaml_flac_decoder *dec = Decoder_val(_dec);
 
   // Intialize decoder
   caml_release_runtime_system();
@@ -538,40 +475,21 @@ CAMLprim value ocaml_flac_decoder_create(value callbacks) {
       dec->decoder, dec_read_callback, dec_seek_callback, dec_tell_callback,
       dec_length_callback, dec_eof_callback, dec_write_callback,
       dec_metadata_callback, dec_error_callback, (void *)&dec->callbacks);
-  caml_acquire_runtime_system();
-
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
-
-  CAMLreturn(ans);
-}
-
-CAMLprim value ocaml_flac_decoder_init(value d, value c) {
-  CAMLparam2(d, c);
-
-  ocaml_flac_decoder *dec = Decoder_val(d);
-
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
-
-  // Process metadata
-  caml_release_runtime_system();
   FLAC__stream_decoder_process_until_end_of_metadata(dec->decoder);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
+  caml_modify_generational_global_root(
+      &dec->callbacks.output, caml_alloc_tuple(dec->callbacks.info->channels));
 
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value ocaml_flac_decoder_state(value d, value c) {
-  CAMLparam2(d, c);
+CAMLprim value ocaml_flac_decoder_state(value d) {
+  CAMLparam1(d);
 
   ocaml_flac_decoder *dec = Decoder_val(d);
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
-
   int ret = FLAC__stream_decoder_get_state(dec->decoder);
-
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
 
   CAMLreturn(val_of_state(ret));
 }
@@ -621,83 +539,64 @@ CAMLprim value ocaml_flac_decoder_info(value d) {
   CAMLreturn(ret);
 }
 
-CAMLprim value ocaml_flac_decoder_process(value d, value c) {
-  CAMLparam2(d, c);
+CAMLprim value ocaml_flac_decoder_process(value d) {
+  CAMLparam1(d);
 
   ocaml_flac_decoder *dec = Decoder_val(d);
-
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
 
   // Process one frame
   caml_release_runtime_system();
   FLAC__stream_decoder_process_single(dec->decoder);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
-
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value ocaml_flac_decoder_seek(value d, value c, value pos) {
-  CAMLparam3(d, c, pos);
+CAMLprim value ocaml_flac_decoder_seek(value d, value pos) {
+  CAMLparam2(d, pos);
 
   FLAC__uint64 offset = Int64_val(pos);
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
-
-  // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_seek_absolute(dec->decoder, offset);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
-
   if (ret == true)
     CAMLreturn(Val_true);
   else
     CAMLreturn(Val_false);
 }
 
-CAMLprim value ocaml_flac_decoder_reset(value d, value c) {
-  CAMLparam2(d, c);
+CAMLprim value ocaml_flac_decoder_reset(value d) {
+  CAMLparam1(d);
 
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
-
-  // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_reset(dec->decoder);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
-
   if (ret == true)
     CAMLreturn(Val_true);
   else
     CAMLreturn(Val_false);
 }
 
-CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
-  CAMLparam2(d, c);
+CAMLprim value ocaml_flac_decoder_flush(value d) {
+  CAMLparam1(d);
 
   FLAC_API FLAC__bool ret;
 
   ocaml_flac_decoder *dec = Decoder_val(d);
 
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, c);
-
-  // Process one frame
   caml_release_runtime_system();
   ret = FLAC__stream_decoder_flush(dec->decoder);
   caml_acquire_runtime_system();
-
-  caml_modify_generational_global_root(&dec->callbacks.callbacks, Val_none);
 
   if (ret == true)
     CAMLreturn(Val_true);
@@ -706,6 +605,17 @@ CAMLprim value ocaml_flac_decoder_flush(value d, value c) {
 }
 
 /* Encoder */
+
+CAMLprim value ocaml_flac_cleanup_encoder(value e) {
+  ocaml_flac_encoder *enc = Encoder_val(e);
+
+  caml_remove_generational_global_root(&enc->callbacks.write_cb);
+  caml_remove_generational_global_root(&enc->callbacks.seek_cb);
+  caml_remove_generational_global_root(&enc->callbacks.tell_cb);
+  caml_remove_generational_global_root(&enc->callbacks.buffer);
+
+  return Val_unit;
+}
 
 static void finalize_encoder(value e) {
   ocaml_flac_encoder *enc = Encoder_val(e);
@@ -718,7 +628,6 @@ static void finalize_encoder(value e) {
   if (enc->lines != NULL)
     free(enc->lines);
 
-  caml_remove_generational_global_root(&enc->callbacks);
   free(enc);
 }
 
@@ -732,32 +641,25 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
                    unsigned current_frame, void *client_data)
 
 {
-  value callbacks = *(value *)client_data;
+  int pos, len;
+  ocaml_flac_encoder_callbacks *callbacks =
+      (ocaml_flac_encoder_callbacks *)client_data;
 
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
 
-  value buf = caml_alloc_string(bytes);
-  caml_register_generational_global_root(&buf);
+  pos = 0;
+  while (pos < bytes) {
+    len = bytes - pos;
 
-  memcpy(Bytes_val(buf), buffer, bytes);
+    if (callbacks->buflen < len)
+      len = callbacks->buflen;
 
-  value write_cb = Enc_write(callbacks);
-  caml_register_generational_global_root(&write_cb);
+    memcpy(Bytes_val(callbacks->buffer), buffer + pos, len);
+    caml_callback2(callbacks->write_cb, callbacks->buffer, Val_int(len));
 
-  value res = caml_callback_exn(write_cb, buf);
-  caml_register_generational_global_root(&res);
-
-  if (Is_exception_result(res)) {
-    caml_remove_generational_global_root(&buf);
-    caml_remove_generational_global_root(&write_cb);
-    caml_remove_generational_global_root(&res);
-    caml_raise(Extract_exception(res));
+    pos += len;
   }
-
-  caml_remove_generational_global_root(&buf);
-  caml_remove_generational_global_root(&write_cb);
-  caml_remove_generational_global_root(&res);
 
   caml_release_runtime_system();
 
@@ -767,60 +669,55 @@ enc_write_callback(const FLAC__StreamEncoder *encoder,
 FLAC__StreamEncoderSeekStatus
 enc_seek_callback(const FLAC__StreamEncoder *encoder,
                   FLAC__uint64 absolute_byte_offset, void *client_data) {
+  ocaml_flac_encoder_callbacks *callbacks =
+      (ocaml_flac_encoder_callbacks *)client_data;
+
+  if (callbacks->seek_cb == Val_none)
+    return FLAC__STREAM_ENCODER_SEEK_STATUS_UNSUPPORTED;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value seek = Enc_seek(*(value *)client_data);
-
-  if (seek != Val_none) {
-    caml_callback(Some_val(seek), caml_copy_int64(absolute_byte_offset));
-
-    caml_release_runtime_system();
-
-    return FLAC__STREAM_ENCODER_SEEK_STATUS_OK;
-  }
-
+  caml_callback(callbacks->seek_cb, caml_copy_int64(absolute_byte_offset));
   caml_release_runtime_system();
 
-  return FLAC__STREAM_ENCODER_SEEK_STATUS_UNSUPPORTED;
+  return FLAC__STREAM_ENCODER_SEEK_STATUS_OK;
 }
 
 static FLAC__StreamEncoderTellStatus
 enc_tell_callback(const FLAC__StreamEncoder *decoder,
                   FLAC__uint64 *absolute_byte_offset, void *client_data) {
+  ocaml_flac_encoder_callbacks *callbacks =
+      (ocaml_flac_encoder_callbacks *)client_data;
+
+  if (callbacks->tell_cb == Val_none)
+    return FLAC__STREAM_ENCODER_TELL_STATUS_UNSUPPORTED;
+
   ocaml_flac_register_thread();
   caml_acquire_runtime_system();
-
-  value tell = Enc_tell(*(value *)client_data);
-
-  if (tell != Val_none) {
-    *absolute_byte_offset =
-        (FLAC__uint64)Int64_val(caml_callback(Some_val(tell), Val_unit));
-
-    caml_release_runtime_system();
-
-    return FLAC__STREAM_ENCODER_TELL_STATUS_OK;
-  }
-
+  *absolute_byte_offset =
+      (FLAC__uint64)Int64_val(caml_callback(callbacks->tell_cb, Val_unit));
   caml_release_runtime_system();
 
-  return FLAC__STREAM_ENCODER_TELL_STATUS_UNSUPPORTED;
+  return FLAC__STREAM_ENCODER_TELL_STATUS_OK;
 }
 
-value ocaml_flac_encoder_vorbiscomment_entry_name_is_legal(value name) {
+CAMLprim value
+ocaml_flac_encoder_vorbiscomment_entry_name_is_legal(value name) {
   CAMLparam1(name);
   CAMLreturn(Val_bool(
       FLAC__format_vorbiscomment_entry_name_is_legal(String_val(name))));
 }
 
-value ocaml_flac_encoder_vorbiscomment_entry_value_is_legal(value _value) {
+CAMLprim value
+ocaml_flac_encoder_vorbiscomment_entry_value_is_legal(value _value) {
   CAMLparam1(_value);
   CAMLreturn(Val_bool(FLAC__format_vorbiscomment_entry_value_is_legal(
       (const FLAC__byte *)String_val(_value), caml_string_length(_value))));
 }
 
-value ocaml_flac_encoder_alloc(value comments, value params) {
-  CAMLparam2(comments, params);
+CAMLprim value ocaml_flac_encoder_alloc(value comments, value seek, value tell,
+                                        value write, value params) {
+  CAMLparam5(comments, seek, tell, write, params);
   CAMLlocal1(ret);
 
   FLAC__StreamEncoder *enc = FLAC__stream_encoder_new();
@@ -834,6 +731,10 @@ value ocaml_flac_encoder_alloc(value comments, value params) {
     FLAC__stream_encoder_set_compression_level(
         enc, Int_val(Some_val(Field(params, 3))));
 
+  if (Field(params, 4) != Val_none)
+    FLAC__stream_encoder_set_total_samples_estimate(
+        enc, Int64_val(Some_val(Field(params, 4))));
+
   ocaml_flac_encoder *caml_enc = malloc(sizeof(ocaml_flac_encoder));
   if (caml_enc == NULL) {
     FLAC__stream_encoder_delete(enc);
@@ -841,11 +742,22 @@ value ocaml_flac_encoder_alloc(value comments, value params) {
   }
 
   caml_enc->encoder = enc;
-  caml_enc->callbacks = Val_none;
+
+  caml_enc->callbacks.seek_cb = Some_or_none(seek);
+  caml_register_generational_global_root(&caml_enc->callbacks.seek_cb);
+
+  caml_enc->callbacks.tell_cb = Some_or_none(tell);
+  caml_register_generational_global_root(&caml_enc->callbacks.tell_cb);
+
+  caml_enc->callbacks.write_cb = write;
+  caml_register_generational_global_root(&caml_enc->callbacks.write_cb);
+
+  caml_enc->callbacks.buflen = 1024;
+  caml_enc->callbacks.buffer = caml_alloc_string(caml_enc->callbacks.buflen);
+  caml_register_generational_global_root(&caml_enc->callbacks.buffer);
+
   caml_enc->buf = NULL;
   caml_enc->lines = NULL;
-
-  caml_register_generational_global_root(&caml_enc->callbacks);
 
   // Fill custom value
   ret = caml_alloc_custom(&encoder_ops, sizeof(ocaml_flac_encoder *), 1, 0);
@@ -854,10 +766,13 @@ value ocaml_flac_encoder_alloc(value comments, value params) {
   /* Metadata */
   caml_enc->meta =
       FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT);
+
   if (caml_enc->meta == NULL) {
+    FLAC__stream_encoder_delete(enc);
     caml_raise_out_of_memory();
   }
   FLAC__StreamMetadata_VorbisComment_Entry entry;
+
   /* Vendor string is ignored by libFLAC.. */
   int i;
   for (i = 0; i < Wosize_val(comments); i++) {
@@ -871,22 +786,13 @@ value ocaml_flac_encoder_alloc(value comments, value params) {
   }
   FLAC__stream_encoder_set_metadata(enc, &caml_enc->meta, 1);
 
-  if (Field(params, 4) != Val_none)
-    FLAC__stream_encoder_set_total_samples_estimate(
-        enc, Int64_val(Some_val(Field(params, 4))));
-
   CAMLreturn(ret);
 }
 
-CAMLprim value ocaml_flac_encoder_create(value comments, value params,
-                                         value callbacks) {
-  CAMLparam3(comments, params, callbacks);
-  CAMLlocal1(ret);
+CAMLprim value ocaml_flac_encoder_init(value _enc) {
+  CAMLparam1(_enc);
 
-  ret = ocaml_flac_encoder_alloc(comments, params);
-  ocaml_flac_encoder *enc = Encoder_val(ret);
-
-  caml_modify_generational_global_root(&enc->callbacks, callbacks);
+  ocaml_flac_encoder *enc = Encoder_val(_enc);
 
   caml_release_runtime_system();
   FLAC__stream_encoder_init_stream(enc->encoder, enc_write_callback,
@@ -894,9 +800,7 @@ CAMLprim value ocaml_flac_encoder_create(value comments, value params,
                                    (void *)&enc->callbacks);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&enc->callbacks, Val_none);
-
-  CAMLreturn(ret);
+  CAMLreturn(Val_unit);
 }
 
 static inline FLAC__int32 sample_from_double(double x, unsigned bps) {
@@ -918,9 +822,8 @@ static inline FLAC__int32 sample_from_double(double x, unsigned bps) {
   }
 }
 
-CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
-                                          value bps) {
-  CAMLparam3(_enc, data, cb);
+CAMLprim value ocaml_flac_encoder_process(value _enc, value data, value bps) {
+  CAMLparam2(_enc, data);
 
   ocaml_flac_encoder *enc = Encoder_val(_enc);
 
@@ -949,30 +852,22 @@ CAMLprim value ocaml_flac_encoder_process(value _enc, value cb, value data,
           sample_from_double(Double_field(Field(data, c), i), Int_val(bps));
   }
 
-  caml_modify_generational_global_root(&enc->callbacks, cb);
-
   caml_release_runtime_system();
   FLAC__stream_encoder_process(enc->encoder,
                                (const FLAC__int32 *const *)enc->buf, samples);
   caml_acquire_runtime_system();
 
-  caml_modify_generational_global_root(&enc->callbacks, Val_none);
-
   CAMLreturn(Val_unit);
 }
 
-CAMLprim value ocaml_flac_encoder_finish(value _enc, value c) {
-  CAMLparam2(_enc, c);
+CAMLprim value ocaml_flac_encoder_finish(value _enc) {
+  CAMLparam1(_enc);
 
   ocaml_flac_encoder *enc = Encoder_val(_enc);
-
-  caml_modify_generational_global_root(&enc->callbacks, c);
 
   caml_release_runtime_system();
   FLAC__stream_encoder_finish(enc->encoder);
   caml_acquire_runtime_system();
-
-  caml_modify_generational_global_root(&enc->callbacks, Val_none);
 
   CAMLreturn(Val_unit);
 }

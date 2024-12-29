@@ -34,7 +34,15 @@ value flac_Val_some(value v);
 
 typedef struct ocaml_flac_decoder_callbacks {
   /* This is used for callback from caml. */
-  value callbacks;
+  value read_cb;
+  value seek_cb;
+  value tell_cb;
+  value length_cb;
+  value eof_cb;
+  value write_cb;
+  value output;
+  value buffer;
+  int buflen;
   FLAC__StreamMetadata_StreamInfo *info;
   FLAC__StreamMetadata *meta;
 } ocaml_flac_decoder_callbacks;
@@ -43,13 +51,6 @@ typedef struct ocaml_flac_decoder {
   FLAC__StreamDecoder *decoder;
   ocaml_flac_decoder_callbacks callbacks;
 } ocaml_flac_decoder;
-
-#define Dec_read(v) Field(v, 0)
-#define Dec_seek(v) Field(v, 1)
-#define Dec_tell(v) Field(v, 2)
-#define Dec_length(v) Field(v, 3)
-#define Dec_eof(v) Field(v, 4)
-#define Dec_write(v) Field(v, 5)
 
 /* Caml abstract value containing the decoder. */
 #define Decoder_val(v) (*((ocaml_flac_decoder **)Data_custom_val(v)))
@@ -68,22 +69,27 @@ void dec_error_callback(const FLAC__StreamDecoder *decoder,
 
 /* Encoder */
 
+typedef struct ocaml_flac_encoder_callbacks {
+  value write_cb;
+  value seek_cb;
+  value tell_cb;
+  value buffer;
+  int buflen;
+} ocaml_flac_encoder_callbacks;
+
 typedef struct ocaml_flac_encoder {
   FLAC__StreamEncoder *encoder;
   FLAC__StreamMetadata *meta;
   FLAC__int32 **buf;
   FLAC__int32 *lines;
-  value callbacks;
+  ocaml_flac_encoder_callbacks callbacks;
 } ocaml_flac_encoder;
 
 /* Caml abstract value containing the decoder. */
 #define Encoder_val(v) (*((ocaml_flac_encoder **)Data_custom_val(v)))
 
-#define Enc_write(v) Field(v, 0)
-#define Enc_seek(v) Field(v, 1)
-#define Enc_tell(v) Field(v, 2)
-
-value ocaml_flac_encoder_alloc(value comments, value params);
+value ocaml_flac_encoder_alloc(value comments, value seek, value tell,
+                               value write, value params);
 
 FLAC__StreamEncoderWriteStatus
 enc_write_callback(const FLAC__StreamEncoder *encoder,

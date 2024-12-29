@@ -50,44 +50,27 @@ module Decoder : sig
     *         Flac.Decoder.process decoder callbacks
     *   | _ -> raise End_of_stream v}
     *
-    * Some remarks: 
+    * Some remarks:
     * - Exceptions raised by callbacks should be treated
-    *   as fatal errors. The dehaviour of the flac library 
+    *   as fatal errors. The dehaviour of the flac library
     *   after being interrupted by an exception is unknown.
     *   The only notable exception is Ogg/flac decoding, where
     *   the read callback raises [Ogg.Not_enough_data].
     * - The state of the decoder should be checked prior to calling
     *   [process]. Termination may not be detected nor raise an
     *   exception so it is the caller's responsibility to check
-    *   on this. 
-    * - See FLAC documentation for the information on the 
-    *   callbacks. 
+    *   on this.
+    * - See FLAC documentation for the information on the
+    *   callbacks.
     * - The variant type for decoder and callbacks is used
-    *   to make sure that different type of decoders 
+    *   to make sure that different type of decoders
     *   (generic, file, ogg) are only used with the same
     *   type of callbacks. *)
 
   (** {3 Types } *)
 
-  (** Type of an uninitialized decoder. *)
-  type 'a dec
+  type t
 
-  (** Type of an initialized decoder. *)
-  type 'a t
-
-  (** Type of a write callback. *)
-  type write = float array array -> unit
-
-  (** Type of  a read callback. *)
-  type read = bytes -> int -> int -> int
-
-  (** Type of a collection of callbacks. *)
-  type 'a callbacks = 'a Flac_impl.Decoder.callbacks
-
-  (** Generic variant type for callbacks and decoder. *)
-  type generic
-
-  (** Info about decoded FLAC data. *)
   type info = {
     sample_rate : int;
     channels : int;
@@ -143,64 +126,59 @@ module Decoder : sig
 
   (** {3 Functions} *)
 
-  (** Create a set of callbacks. *)
-  val get_callbacks :
+  (** Create a decoder. The decoder will be used to decode
+    * all metadata. Initial audio data shall be immediatly available
+    * after this call. *)
+  val create :
     ?seek:(int64 -> unit) ->
     ?tell:(unit -> int64) ->
     ?length:(unit -> int64) ->
     ?eof:(unit -> bool) ->
-    read ->
-    write ->
-    generic callbacks
-
-  (** Create an uninitialized decoder. *)
-  val create : 'a callbacks -> 'a dec
-
-  (** Initialize a decoder. The decoder will be used to decode
-    * all metadata. Initial audio data shall be immediatly available
-    * after this call. *)
-  val init : 'a dec -> 'a callbacks -> 'a t * info * comments option
+    read:(bytes -> int -> int -> int) ->
+    write:(float array array -> unit) ->
+    unit ->
+    t * info * comments option
 
   (** Decode one frame of audio data. *)
-  val process : 'a t -> 'a callbacks -> unit
+  val process : t -> unit
 
   (** Flush the input and seek to an absolute sample.
-    * Decoding will resume at the given sample. Note 
-    * that because of this, the next write callback may 
-    * contain a partial block.  The client must support seeking 
-    * the input or this function will fail and return [false].  
+    * Decoding will resume at the given sample. Note
+    * that because of this, the next write callback may
+    * contain a partial block.  The client must support seeking
+    * the input or this function will fail and return [false].
     * Furthermore, if the decoder state is [`Seek_error]
     * then the decoder must be flushed or reset
     * before decoding can continue. *)
-  val seek : 'a t -> 'a callbacks -> Int64.t -> bool
+  val seek : t -> Int64.t -> bool
 
   (** Flush the stream input.
     *  The decoder's input buffer will be cleared and the state set to
     *  [`Search_for_frame_sync].  This will also turn
     *  off MD5 checking. *)
-  val flush : 'a t -> 'a callbacks -> bool
+  val flush : t -> bool
 
   (** Reset the decoding process.
     *  The decoder's input buffer will be cleared and the state set to
     *  [`Search_for_metadata]. MD5 checking will be restored to its original
     *  setting.
     *
-    *  If the decoder is seekable, the decoder will also attempt to seek to 
-    *  the beginning of the stream. If this rewind fails, this function will 
-    * return [false].  It follows that [reset] cannot be used when decoding 
+    *  If the decoder is seekable, the decoder will also attempt to seek to
+    *  the beginning of the stream. If this rewind fails, this function will
+    * return [false].  It follows that [reset] cannot be used when decoding
     * from [stdin].
     *
-    *  If the decoder is not seekable (i.e. no seek callback was provided) 
-    *  it is the duty of the client to start feeding data from the beginning 
+    *  If the decoder is not seekable (i.e. no seek callback was provided)
+    *  it is the duty of the client to start feeding data from the beginning
     *  of the stream on the next [process]. *)
-  val reset : 'a t -> 'a callbacks -> bool
+  val reset : t -> bool
 
   (** Get the state of a decoder. *)
-  val state : 'a t -> 'a callbacks -> state
+  val state : t -> state
 
   (** {3 Convenience} *)
 
-  (** Convert an audio array to a S16LE string for 
+  (** Convert an audio array to a S16LE string for
     * decoding FLAC to WAV and raw PCM *)
   val to_s16le : float array array -> string
 
@@ -211,17 +189,10 @@ module Decoder : sig
 
     (** {3 Types} *)
 
-    (** File variant type for a file decoder *)
-    type file
-
     (* Handler for file decoder *)
     type handle = {
       fd : Unix.file_descr;
-      dec : file t;
-      (* These callback support [seek] and [tell]
-       * if the underlying [Unix.file_descriptor]
-       * supports them. *)
-      callbacks : file callbacks;
+      dec : t;
       info : info;
       comments : (string * (string * string) list) option;
     }
@@ -229,14 +200,15 @@ module Decoder : sig
     (** {3 Functions} *)
 
     (** Create a file decoder from a Unix file
-      * descriptor 
+      * descriptor
       *
       * Note: this decoder requires seeking thus will only work on seekable
       * file descriptor. *)
-    val create_from_fd : write -> Unix.file_descr -> handle
+    val create_from_fd :
+      write:(float array array -> unit) -> Unix.file_descr -> handle
 
     (** Create a file decoder from a file URI *)
-    val create : write -> string -> handle
+    val create : write:(float array array -> unit) -> string -> handle
   end
 end
 
@@ -255,23 +227,23 @@ module Encoder : sig
     * (* Create an encoder *)
     * let enc = Flac.Encoder.create ~comments params callbacks in
     * (* Encode data *)
-    * let data = (..a value of type float array array.. in 
+    * let data = (..a value of type float array array.. in
     *  Flac.Encoder.process enc callbacks data ;
     * (..repeat encoding process..)
     * (* Close encoder *)
     * Flac.Encoder.finish enc callbacks v}
-    * 
-    * Remarks: 
+    *
+    * Remarks:
     * - Exceptions raised by the callbacks should be treated
     *   as fatal. The behaviour of the FLAC encoding library is
     *   unknown after interrupted by an exception.
     * - Encoded data should have the same number of channels as
     *   specified in encoder's parameters and the same number of
-    *   samples in each channels. 
+    *   samples in each channels.
     * - See FLAC documentation for informations about the callbacks.
     *   Note in particular that some information about encoded data
-    *   such as md5 sum and total samples are only written when a 
-    *   [seek] callback is given. 
+    *   such as md5 sum and total samples are only written when a
+    *   [seek] callback is given.
     * - Variant types for callbacks and encoder are used to make sure
     *   that different type of callbacks (generic, file, ogg) are always
     *   used with the corresponding decoder type. *)
@@ -279,16 +251,7 @@ module Encoder : sig
   (** {3 Types} *)
 
   (** Type of an encoder. *)
-  type 'a t
-
-  (** Type of a write callback *)
-  type write = bytes -> unit
-
-  (** Type of a set of callbacks *)
-  type 'a callbacks = 'a Flac_impl.Encoder.callbacks
-
-  (** Generic type for an encoder *)
-  type generic
+  type t
 
   (** Type of encoding parameters *)
   type params = {
@@ -315,10 +278,6 @@ module Encoder : sig
 
   (** {3 Functions} *)
 
-  (** Create a set of encoding callbacks *)
-  val get_callbacks :
-    ?seek:(int64 -> unit) -> ?tell:(unit -> int64) -> write -> generic callbacks
-
   (** Check if a comment label is valid *)
   val vorbiscomment_entry_name_is_legal : string -> bool
 
@@ -326,19 +285,25 @@ module Encoder : sig
   val vorbiscomment_entry_value_is_legal : string -> bool
 
   (** Create an encoder *)
-  val create : ?comments:comments -> params -> 'a callbacks -> 'a t
+  val create :
+    ?comments:comments ->
+    ?seek:(int64 -> unit) ->
+    ?tell:(unit -> int64) ->
+    write:(bytes -> unit) ->
+    params ->
+    t
 
   (** Encode some data *)
-  val process : 'a t -> 'a callbacks -> float array array -> unit
+  val process : t -> float array array -> unit
 
   (** Terminate an encoder. Causes the encoder to
     * flush remaining encoded data. The encoder should
     * not be used anymore afterwards. *)
-  val finish : 'a t -> 'a callbacks -> unit
+  val finish : t -> unit
 
   (** {3 Convenience} *)
 
-  (** Convert S16LE pcm data to an audio array for 
+  (** Convert S16LE pcm data to an audio array for
     * encoding WAV and raw PCM to flac. *)
   val from_s16le : string -> int -> float array array
 
@@ -348,20 +313,13 @@ module Encoder : sig
 
     (** {3 Types} *)
 
-    (** Generic variant type for file encoder *)
-    type file
-
     (** Handle for file encoder *)
-    type handle = {
-      fd : Unix.file_descr;
-      enc : file t;
-      callbacks : file callbacks;
-    }
+    type handle = { fd : Unix.file_descr; enc : t }
 
     (** {3 Functions} *)
 
     (** Create a file encoder writing data to a given Unix file descriptor.
-      * 
+      *
       * Note: this encoder requires seeking thus will only work on seekable
       * file descriptor. *)
     val create_from_fd :

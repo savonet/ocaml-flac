@@ -74,13 +74,9 @@ let _ =
   let encode, finish =
     if not !ogg then (
       let enc = Flac.Encoder.File.create ~comments params !dst in
-      let encode buf =
-        Flac.Encoder.process enc.Flac.Encoder.File.enc
-          enc.Flac.Encoder.File.callbacks buf
-      in
+      let encode buf = Flac.Encoder.process enc.Flac.Encoder.File.enc buf in
       let finish () =
-        Flac.Encoder.finish enc.Flac.Encoder.File.enc
-          enc.Flac.Encoder.File.callbacks;
+        Flac.Encoder.finish enc.Flac.Encoder.File.enc;
         Unix.close enc.Flac.Encoder.File.fd
       in
       (encode, finish))
@@ -91,12 +87,12 @@ let _ =
         output_string oc body
       in
       let serialno = Random.nativeint Nativeint.max_int in
-      let { Flac_ogg.Encoder.encoder; callbacks; first_pages } =
-        Flac_ogg.Encoder.create ~comments ~serialno params write_page
+      let { Flac_ogg.Encoder.encoder; first_pages } =
+        Flac_ogg.Encoder.create ~comments ~serialno ~write:write_page params
       in
       List.iter write_page first_pages;
-      let encode = Flac.Encoder.process encoder callbacks in
-      let finish () = Flac.Encoder.finish encoder callbacks in
+      let encode = Flac.Encoder.process encoder in
+      let finish () = Flac.Encoder.finish encoder in
       (encode, finish))
   in
   let start = Unix.time () in

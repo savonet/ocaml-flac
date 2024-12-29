@@ -21,17 +21,15 @@
 (* Author; Romain Beauxis <toots@rastageeks.org> *)
 
 module Decoder = struct
-  type ogg
-
   external get_packet_data : Ogg.Stream.packet -> string
     = "ocaml_flac_decoder_packet_data"
 
   let ogg_header_len = 9
 
-  let get_callbacks os write : ogg Flac.Decoder.callbacks =
+  let create ~fill ~write os =
     let read_data = Buffer.create 1024 in
     let is_first_packet = ref true in
-    let read bytes ofs len =
+    let rec read bytes ofs len =
       try
         if Buffer.length read_data = 0 then (
           let p = Ogg.Stream.get_packet os in
@@ -53,54 +51,58 @@ module Decoder = struct
         Buffer.add_string read_data rem;
         Bytes.blit_string c 0 bytes ofs len;
         len
-      with Ogg.End_of_stream -> 0
+      with
+        | Ogg.Not_enough_data ->
+            fill ();
+            read bytes ofs len
+        | Ogg.End_of_stream -> 0
     in
-    Flac__Flac_impl.Decoder.get_callbacks read write
+    Flac.Decoder.create ~read ~write ()
 
   external check_packet : Ogg.Stream.packet -> bool
     = "ocaml_flac_decoder_check_ogg"
 end
 
 module Encoder = struct
-  type ogg
-  type enc
+  type priv
+  type t = { encoder : Flac.Encoder.t; first_pages : Ogg.Page.t list }
 
-  type t = {
-    encoder : ogg Flac.Encoder.t;
-    callbacks : ogg Flac.Encoder.callbacks;
-    first_pages : Ogg.Page.t list;
-  }
-
-  external create :
+  external alloc :
     (string * string) array ->
+    seek:(int64 -> unit) option ->
+    tell:(unit -> int64) option ->
+    write:(bytes -> int -> unit) ->
     Flac.Encoder.params ->
-    'a Flac.Encoder.callbacks ->
-    nativeint ->
-    enc = "ocaml_flac_encoder_ogg_create"
+    priv = "ocaml_flac_encoder_alloc"
 
-  let create ?(comments = []) ~serialno params write =
+  external cleanup : priv -> unit = "ocaml_flac_cleanup_encoder"
+  external init : priv -> nativeint -> unit = "ocaml_flac_encoder_ogg_init"
+
+  let create ?(comments = []) ~serialno ~write params =
     if params.Flac.Encoder.channels <= 0 then raise Flac.Encoder.Invalid_data;
     let comments = Array.of_list comments in
+    let first_pages_parsed = ref false in
     let first_pages = ref [] in
     let header = ref None in
     let write_wrap write p =
       match !header with
         | Some h ->
             header := None;
-            write (Bytes.unsafe_to_string h, Bytes.unsafe_to_string p)
+            write (h, p)
         | None -> header := Some p
     in
-    let write_first_page =
-      write_wrap (fun p -> first_pages := p :: !first_pages)
+    let write_first_page p = first_pages := p :: !first_pages in
+    let write =
+      write_wrap (fun p ->
+          if !first_pages_parsed then write p else write_first_page p)
     in
-    let callbacks = Flac.Encoder.get_callbacks write_first_page in
-    let enc = create comments params callbacks serialno in
+    let write b len = write (Bytes.sub_string b 0 len) in
+    let enc = alloc comments ~seek:None ~tell:None ~write params in
+    Gc.finalise cleanup enc;
+    init enc serialno;
+    first_pages_parsed := true;
     assert (!header = None);
-    {
-      encoder = Obj.magic (enc, params);
-      callbacks = Flac__Flac_impl.Encoder.get_callbacks (write_wrap write);
-      first_pages = List.rev !first_pages;
-    }
+    { encoder = Obj.magic (enc, params); first_pages = List.rev !first_pages }
 end
 
 module Skeleton = struct
