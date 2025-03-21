@@ -1,3 +1,5 @@
+# ⚠️ This repository is archived. Developement has been moved to [savonet/ocaml-xiph](https://github.com/savonet/ocaml-xiph) ⚠️
+
 ocaml-flac
 ============
 
